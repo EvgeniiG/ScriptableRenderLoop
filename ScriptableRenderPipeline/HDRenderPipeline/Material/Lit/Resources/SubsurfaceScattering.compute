@@ -10,7 +10,6 @@
 #define SSS_BILATERAL_FILTER  1
 #define SSS_USE_LDS_CACHE     1
 #define SSS_ENABLE_NEAR_FIELD 0 // Greatly increases the number of samples. Comes at a high cost.
-#define SSS_SAMPLE_TEST_HTILE 0 // Potential optimization. YMMV.
 #define SSS_USE_TANGENT_PLANE 0 // Improves the accuracy of the approximation(0 -> 1st order). High cost. Does not work with back-facing normals.
 #define SSS_CLAMP_ARTIFACT    0 // Reduces bleeding. Use with SSS_USE_TANGENT_PLANE.
 #define SSS_DEBUG_LOD         0
@@ -71,32 +70,6 @@ groupshared float4 textureCache[TEXTURE_CACHE_SIZE_1D * TEXTURE_CACHE_SIZE_1D]; 
 #endif
 groupshared bool   processGroup;
 
-bool StencilTest(int2 pixelCoord, float stencilRef)
-{
-    bool passedStencilTest;
-
-#if SSS_SAMPLE_TEST_HTILE
-    int2 tileCoord = pixelCoord / 8;
-
-    // Perform the stencil test (reject at the tile rate).
-    passedStencilTest = stencilRef == LOAD_TEXTURE2D(_HTile, tileCoord).r;
-
-    [branch] if (passedStencilTest)
-#else
-    // It is extremely uncommon for individual samples to fail the HTile test.
-    // Unfortunately, our copy of HTile does not allow to accept at the tile rate.
-    // Therefore, we choose not to perform the HiS test here.
-#endif
-    {
-        // Unfortunately, our copy of HTile does not allow to accept at the tile rate.
-        // Therefore, we have to additionally perform the stencil test at the pixel rate.
-        // We check the tagged irradiance buffer to avoid an extra stencil texture fetch.
-        passedStencilTest = TestLightingForSSS(LOAD_TEXTURE2D(_IrradianceSource, pixelCoord).rgb);
-    }
-
-    return passedStencilTest;
-}
-
 #if SSS_USE_LDS_CACHE
 float4 LoadSampleFromCacheMemory(int2 cacheCoord)
 {
@@ -115,10 +88,10 @@ float4 LoadSampleFromVideoMemory(int2 pixelCoord)
 // Returns {irradiance, linearDepth}.
 float4 LoadSample(int2 pixelCoord, int2 cacheAnchor)
 {
+#if SSS_USE_LDS_CACHE
     int2 cacheCoord = pixelCoord - cacheAnchor;
     bool isInCache  = max((uint)cacheCoord.x, (uint)cacheCoord.y) < TEXTURE_CACHE_SIZE_1D;
 
-#if SSS_USE_LDS_CACHE
     [branch] if (isInCache)
     {
         return LoadSampleFromCacheMemory(cacheCoord);
@@ -126,16 +99,7 @@ float4 LoadSample(int2 pixelCoord, int2 cacheAnchor)
     else
 #endif
     {
-        float stencilRef = STENCILLIGHTINGUSAGE_SPLIT_LIGHTING;
-
-        [branch] if (StencilTest(pixelCoord, stencilRef))
-        {
-            return LoadSampleFromVideoMemory(pixelCoord);
-        }
-        else
-        {
-            return float4(0, 0, 0, 0);
-        }
+        return LoadSampleFromVideoMemory(pixelCoord);
     }
 }
 
@@ -258,6 +222,7 @@ void SubsurfaceScattering(uint2 groupId       : SV_GroupID,
     uint2 cacheCoord  = localCoord + TEXTURE_CACHE_BORDER;
     float stencilRef  = STENCILLIGHTINGUSAGE_SPLIT_LIGHTING;
 
+    // TODO: make sure this block contains only scalar instructions.
     [branch] if (groupThreadId == 0)
     {
         // Check whether the thread group needs to perform any work.
@@ -275,18 +240,10 @@ void SubsurfaceScattering(uint2 groupId       : SV_GroupID,
 
     [branch] if (!processGroup) { return; }
 
-    float3 centerIrradiance = 0;
-    float  centerDepth      = 0;
-    float4 cachedValue      = 0;
-
-    bool passedStencilTest = StencilTest((int2)pixelCoord, stencilRef);
-
-    [branch] if (passedStencilTest)
-    {
-        centerIrradiance = LOAD_TEXTURE2D(_IrradianceSource, pixelCoord).rgb;
-        centerDepth      = LOAD_TEXTURE2D(_DepthTexture,     pixelCoord).r;
-        cachedValue      = float4(centerIrradiance, LinearEyeDepth(centerDepth, _ZBufferParams));
-    }
+    float4 cachedValue       = LoadSampleFromVideoMemory((int2)pixelCoord);
+    float3 centerIrradiance  = cachedValue.rgb;
+    float  centerDepth       = cachedValue.a;
+    bool   passedStencilTest = TestLightingForSSS(centerIrradiance);
 
 #if SSS_USE_LDS_CACHE
     // Populate the central region of the LDS cache.
@@ -327,12 +284,7 @@ void SubsurfaceScattering(uint2 groupId       : SV_GroupID,
 
         uint2  cacheCoord2  = 2 * (startQuad + quadCoord) + uint2(laneIndex & 1, (laneIndex >> 1) & 1);
         int2   pixelCoord2  = (int2)(tileAnchor + cacheCoord2) - TEXTURE_CACHE_BORDER;
-        float4 cachedValue2 = 0;
-
-        [branch] if (StencilTest(pixelCoord2, stencilRef))
-        {
-            cachedValue2 = LoadSampleFromVideoMemory(pixelCoord2);
-        }
+        float4 cachedValue2 = LoadSampleFromVideoMemory(pixelCoord2);
 
         // Populate the border region of the LDS cache.
         textureCache[Mad24(TEXTURE_CACHE_SIZE_1D, cacheCoord2.y, cacheCoord2.x)] = cachedValue2;

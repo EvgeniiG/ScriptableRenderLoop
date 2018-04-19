@@ -331,8 +331,8 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
 
         public override void Bind()
         {
-            Shader.SetGlobalTexture("_PreIntegratedFGD", m_PreIntegratedFGD);
-            Shader.SetGlobalTexture("_LtcData", m_LtcData);
+            Shader.SetGlobalTexture(HDShaderIDs._PreIntegratedFGD, m_PreIntegratedFGD);
+            Shader.SetGlobalTexture(HDShaderIDs._LtcData,          m_LtcData);
         }
     }
 }

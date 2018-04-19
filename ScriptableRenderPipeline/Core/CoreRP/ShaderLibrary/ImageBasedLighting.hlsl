@@ -326,10 +326,10 @@ void ImportanceSampleAnisoGGX(real2   u,
 
 #if !defined SHADER_API_GLES
 // Ref: Listing 18 in "Moving Frostbite to PBR" + https://knarkowicz.wordpress.com/2014/12/27/analytical-dfg-term-for-ibl/
-real4 IntegrateGGXAndDisneyFGD(real3 V, real3 N, real roughness, uint sampleCount = 8192)
+real3 IntegrateGGXAndDisneyFGD(real3 V, real3 N, real roughness, uint sampleCount = 8192)
 {
-    real NdotV     = ClampNdotV(dot(N, V));
-    real4 acc      = real4(0.0, 0.0, 0.0, 0.0);
+    real NdotV = ClampNdotV(dot(N, V));
+    real3 acc  = 0;
     // Add some jittering on Hammersley2d
     real2 randNum  = InitRandom(V.xy * 0.5 + 0.5);
 
@@ -377,6 +377,87 @@ real4 IntegrateGGXAndDisneyFGD(real3 V, real3 N, real roughness, uint sampleCoun
 
     return acc;
 }
+
+real3 SampleGgxNdf(real2 u, real roughness)
+{
+    real cosTheta = sqrt((1.0 - u.x) / (1.0 + (roughness * roughness - 1.0) * u.x));
+    real phi      = TWO_PI * u.y;
+
+    return SphericalToCartesian(phi, cosTheta);
+}
+
+real G_GGX(real NdotV, real NdotL, real roughness)
+{
+    // Original formulation:
+    // lambda_v = (-1 + sqrt(a2 * (1 - NdotL2) / NdotL2 + 1)) * 0.5
+    // lambda_l = (-1 + sqrt(a2 * (1 - NdotV2) / NdotV2 + 1)) * 0.5
+    // G        = 1 / (1 + lambda_v + lambda_l);
+
+    real a2      = Sq(roughness);
+    real NdotL2  = Sq(NdotL);
+    real NdotV2  = Sq(NdotV);
+    real lambdaL = (-1 + sqrt(a2 * (1 - NdotL2) / NdotL2 + 1)) * 0.5;
+    real lambdaV = (-1 + sqrt(a2 * (1 - NdotV2) / NdotV2 + 1)) * 0.5;
+
+    return 1 / (1 + lambdaL + lambdaV);
+}
+
+real IntegrateGGXOverSphere(real3 V, real roughness, uint sampleCount = 8192)
+{
+    real3 N      = real3(0, 0, 1);
+    real  IoR    = 1.5;
+    real  NdotV  = dot(N, V);
+    real2 rndNum = InitRandom(V.xy * 0.5 + 0.5);
+
+    real estimate = 0;
+
+    for (uint i = 0; i < sampleCount; ++i)
+    {
+        real2 u = frac(rndNum + Hammersley2d(i, sampleCount));
+
+        real3 H     = SampleGgxNdf(u, roughness);
+        real  NdotH = dot(N, H);
+        real  VdotH = dot(V, H);
+        real  F     = F_Fresnel(IoR, VdotH);
+        // real  D     = D_GGX(NdotH, roughness);
+        // real  pdf_H = D * NdotH;
+        // Optimize (cancel out terms):
+        real  pdf_H = NdotH;
+
+        // Reflection...
+        real3 R     = SafeNormalize(reflect(-V, H));
+        real  NdotR = dot(N, R);
+        real  RdotH = VdotH;
+        real  j_r   = 4 * RdotH;
+        real  val_r = F * V_SmithJointGGX(NdotR, NdotV, roughness) * NdotR;
+
+        if (NdotH > 0 && NdotV > 0 && NdotR > 0 && VdotH > 0 && RdotH > 0 && pdf_H > 0)
+        {
+            estimate += val_r * j_r / pdf_H;
+        }
+
+        // Transmission...
+        real3 T     = SafeNormalize(refract(-V, H, IoR));
+        real  TdotH = dot(T, H);
+        real  NdotT = dot(N, T);
+        // real  j_t   = Sq(1 * VdotH + IoR * TdotH) / (Sq(IoR) * abs(TdotH));
+        // real  val_t = (1 - F) * D * G_GGX(NdotV, abs(NdotT), roughness) * VdotH * abs(TdotH) * Sq(IoR) / (Sq(1 * VdotH + IoR * TdotH) * NdotV * abs(NdotT)) * abs(NdotT);
+        // Optimize (cancel out terms):
+        real  j_t   = 1;
+        real  val_t = (1 - F) * G_GGX(NdotV, abs(NdotT), roughness) * VdotH / (NdotV * abs(NdotT)) * abs(NdotT);
+
+        if (NdotH > 0 && NdotV > 0 && NdotT < 0 && VdotH > 0 && TdotH < 0 && pdf_H > 0)
+        {
+            estimate += val_t * j_t / pdf_H;
+        }
+    }
+
+    estimate /= sampleCount;
+
+    return estimate;
+}
+
+
 #else
 // Not supported due to lack of random library in GLES 2
 #define IntegrateGGXAndDisneyFGD ERROR_ON_UNSUPPORTED_FUNCTION(IntegrateGGXAndDisneyFGD)

@@ -280,11 +280,11 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         {
             m_InitPreFGD = CoreUtils.CreateEngineMaterial("Hidden/HDRenderPipeline/PreIntegratedFGD");
 
-            m_PreIntegratedFGD = new RenderTexture(128, 128, 0, RenderTextureFormat.ARGB2101010, RenderTextureReadWrite.Linear);
+            m_PreIntegratedFGD = new RenderTexture(128, 128, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             m_PreIntegratedFGD.hideFlags = HideFlags.HideAndDontSave;
             m_PreIntegratedFGD.filterMode = FilterMode.Bilinear;
             m_PreIntegratedFGD.wrapMode = TextureWrapMode.Clamp;
-            m_PreIntegratedFGD.name = CoreUtils.GetRenderTargetAutoName(128, 128, RenderTextureFormat.ARGB2101010, "PreIntegratedFGD");
+            m_PreIntegratedFGD.name = CoreUtils.GetRenderTargetAutoName(128, 128, RenderTextureFormat.ARGBHalf, "PreIntegratedFGD");
             m_PreIntegratedFGD.Create();
 
             m_LtcData = new Texture2DArray(k_LtcLUTResolution, k_LtcLUTResolution, 3, TextureFormat.RGBAHalf, false /*mipmap*/, true /* linear */)

@@ -69,7 +69,12 @@ real3 F_Transm_Schlick(real3 f0, real u)
 // Fresnel dieletric / dielectric
 real F_Fresnel(real ior, real u)
 {
-    real g = sqrt(Sq(ior) + Sq(u) - 1.0);
+    float temp = Sq(ior) + Sq(u) - 1.0;
+
+   if (temp < 0)
+      return 1.0;
+
+    real g = sqrt(temp);
     return 0.5 * Sq((g - u) / (g + u)) * (1.0 + Sq(((g + u) * u - 1.0) / ((g - u) * u + 1.0)));
 }
 

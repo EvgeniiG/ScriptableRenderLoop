@@ -47,9 +47,11 @@ Shader "Hidden/HDRenderPipeline/PreIntegratedFGD"
                 float3 N                    = float3(0.0, 0.0, 1.0);
 
                 // Pre integrate GGX with smithJoint visibility as well as DisneyDiffuse
-                float4 preFGD = IntegrateGGXAndDisneyFGD(V, N, PerceptualRoughnessToRoughness(perceptualRoughness));
+                float3 preFGD = IntegrateGGXAndDisneyFGD(V, N, PerceptualRoughnessToRoughness(perceptualRoughness));
 
-                return float4(preFGD.xyz, 1.0);
+                float  w = IntegrateGGXOverSphere(V, PerceptualRoughnessToRoughness(perceptualRoughness));
+
+                return float4(preFGD.xyz, w);
             }
 
             ENDHLSL

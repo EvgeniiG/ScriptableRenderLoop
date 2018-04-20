@@ -325,7 +325,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 CoreUtils.DrawFullScreen(cmd, m_InitPreFGD, new RenderTargetIdentifier(m_PreIntegratedFGD));
             }
 
-            m_isInit = true;
+            // m_isInit = true;
         }
 
         public override void Bind()

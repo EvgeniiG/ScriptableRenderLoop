@@ -402,18 +402,18 @@ real G_GGX(real NdotV, real NdotL, real roughness)
     return 1 / (1 + lambdaL + lambdaV);
 }
 
-real IntegrateGGXOverSphere(real3 V, real roughness, uint sampleCount = 8192)
+real2 IntegrateGGXOverSphere(real3 V, real roughness, uint sampleCount = 8192)
 {
     real3 N      = real3(0, 0, 1);
     real  IoR    = 1.5;
     real  NdotV  = dot(N, V);
-    real2 rndNum = InitRandom(V.xy * 0.5 + 0.5);
 
-    real estimate = 0;
+    real estimateR = 0;
+    real estimateT = 0;
 
     for (uint i = 0; i < sampleCount; ++i)
     {
-        real2 u = frac(rndNum + Hammersley2d(i, sampleCount));
+        real2 u = Hammersley2d(i, sampleCount);
 
         real3 H     = SampleGgxNdf(u, roughness);
         real  NdotH = dot(N, H);
@@ -433,11 +433,11 @@ real IntegrateGGXOverSphere(real3 V, real roughness, uint sampleCount = 8192)
 
         if (NdotH > 0 && NdotV > 0 && NdotR > 0 && VdotH > 0 && RdotH > 0 && pdf_H > 0)
         {
-            estimate += val_r * j_r / pdf_H;
+            estimateR += val_r * j_r / pdf_H;
         }
 
         // Transmission...
-        real3 T     = SafeNormalize(refract(-V, H, IoR));
+        real3 T     = SafeNormalize(refract(-V, H, 1.0f / IoR)); // Have to pass the inverse...
         real  TdotH = dot(T, H);
         real  NdotT = dot(N, T);
         // real  j_t   = Sq(1 * VdotH + IoR * TdotH) / (Sq(IoR) * abs(TdotH));
@@ -448,13 +448,17 @@ real IntegrateGGXOverSphere(real3 V, real roughness, uint sampleCount = 8192)
 
         if (NdotH > 0 && NdotV > 0 && NdotT < 0 && VdotH > 0 && TdotH < 0 && pdf_H > 0)
         {
-            estimate += val_t * j_t / pdf_H;
+            estimateT += val_t * j_t / pdf_H;
         }
     }
 
-    estimate /= sampleCount;
+    estimateR /= sampleCount;
+    estimateT /= sampleCount;
 
-    return estimate;
+    real estimateFull  = estimateR + estimateT;
+    real estimateRatio = estimateT / estimateFull;
+
+    return real2(estimateFull, estimateRatio);
 }
 
 

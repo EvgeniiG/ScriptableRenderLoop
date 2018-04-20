@@ -81,7 +81,7 @@ TEXTURE2D_ARRAY(_LtcData); // We pack the 3 Ltc data inside a texture array
 //-----------------------------------------------------------------------------
 
 // Choose between Lambert diffuse and Disney diffuse (enable only one of them)
-// #define LIT_DIFFUSE_LAMBERT_BRDF
+#define LIT_DIFFUSE_LAMBERT_BRDF
 #define LIT_USE_GGX_ENERGY_COMPENSATION
 
 // Enable reference mode for IBL and area lights
@@ -1200,7 +1200,12 @@ void BSDF(  float3 V, float3 L, float NdotL, float3 positionWS, PreLightData pre
     float LdotH    = saturate(invLenLV * LdotV + invLenLV);
     float NdotV    = ClampNdotV(preLightData.NdotV);
 
+#if 0
     float3 F = F_Schlick(bsdfData.fresnel0, LdotH);
+#else
+    float  IoR = 1.5;
+    float3 F   = F_Fresnel(IoR, LdotH);
+#endif
     // Remark: Fresnel must be use with LdotH angle. But Fresnel for iridescence is expensive to compute at each light.
     // Instead we use the incorrect angle NdotV as an approximation for LdotH for Fresnel evaluation.
     // The Fresnel with iridescence and NDotV angle is precomputed ahead and here we jsut reuse the result.
@@ -1346,6 +1351,14 @@ DirectLighting EvaluateBSDF_Directional(LightLoopContext lightLoopContext,
     {
         BSDF(V, L, NdotL, posInput.positionWS, preLightData, bsdfData, lighting.diffuse, lighting.specular);
 
+        if (posInput.positionNDC.x > 0.5)
+        {
+            float diffuseV = SAMPLE_TEXTURE2D_LOD(_PreIntegratedFGD, s_linear_clamp_sampler, float2(NdotV,           bsdfData.perceptualRoughness), 0).w;
+            float diffuseL = SAMPLE_TEXTURE2D_LOD(_PreIntegratedFGD, s_linear_clamp_sampler, float2(saturate(NdotL), bsdfData.perceptualRoughness), 0).w;
+
+            lighting.diffuse = (1.0f / PI) * diffuseL * diffuseV;
+        }
+
         lighting.diffuse  *= intensity * lightData.diffuseScale;
         lighting.specular *= intensity * lightData.specularScale;
     }
@@ -1446,6 +1459,14 @@ DirectLighting EvaluateBSDF_Punctual(LightLoopContext lightLoopContext,
         bsdfData.roughnessB = max(bsdfData.roughnessB, lightData.minRoughness);
 
         BSDF(V, L, NdotL, posInput.positionWS, preLightData, bsdfData, lighting.diffuse, lighting.specular);
+
+        if (posInput.positionNDC.x > 0.5)
+        {
+            float diffuseV = SAMPLE_TEXTURE2D_LOD(_PreIntegratedFGD, s_linear_clamp_sampler, float2(NdotV,           bsdfData.perceptualRoughness), 0).w;
+            float diffuseL = SAMPLE_TEXTURE2D_LOD(_PreIntegratedFGD, s_linear_clamp_sampler, float2(saturate(NdotL), bsdfData.perceptualRoughness), 0).w;
+
+            lighting.diffuse = (1.0f / PI) * diffuseL * diffuseV;
+        }
 
         lighting.diffuse  *= intensity * lightData.diffuseScale;
         lighting.specular *= intensity * lightData.specularScale;
@@ -2151,8 +2172,16 @@ void PostEvaluateBSDF(  LightLoopContext lightLoopContext,
 #endif
 
     specularLighting = lighting.direct.specular + lighting.indirect.specularReflected;
+
+#ifdef LIT_USE_GGX_ENERGY_COMPENSATION
     // Rescale the GGX to account for the multiple scattering.
+#if 0
     specularLighting *= 1.0 + bsdfData.fresnel0 * preLightData.energyCompensation;
+#else
+    specularLighting /= SAMPLE_TEXTURE2D_LOD(_PreIntegratedFGD, s_linear_clamp_sampler, float2(ClampNdotV(preLightData.NdotV), bsdfData.perceptualRoughness), 0).z;
+#endif
+#endif
+
 
 #ifdef DEBUG_DISPLAY
  

@@ -1,0 +1,157 @@
+#include "CoreRP/ShaderLibrary/Common.hlsl"
+#include "CoreRP/ShaderLibrary/SpaceFillingCurves.hlsl"
+#include "CoreRP/ShaderLibrary/Shadow/ShadowMoments.hlsl"
+
+#define _Source       _ShadowmapExp_PCF // The name is hardcoded by the shadow system
+#define USE_GATHER    1
+#define USE_4_MOMENTS 0
+#define GROUP_SIZE_1D 8
+#define GROUP_SIZE_2D (GROUP_SIZE_1D * GROUP_SIZE_1D)
+#define ITER_COUNT_1D 2
+#define ITER_COUNT_2D (ITER_COUNT_1D * ITER_COUNT_1D)
+
+// The shadow system expects the atlas to be an array texture of size 1.
+// But what is the cost of using array textures vs regular 2D textures?
+TEXTURE2D_ARRAY(_Source);
+#if USE_4_MOMENTS
+    RW_TEXTURE2D_ARRAY(float4, _Destination);
+#else
+    RW_TEXTURE2D_ARRAY(float2, _Destination);
+#endif // USE_4_MOMENTS
+
+#if USE_GATHER
+    SAMPLER(s_point_clamp_sampler);
+#endif
+
+// Don't want the overhead of binding a constant buffer.
+// Immediate constant buffer or push constants, please?
+float4 _PassParams; // {1 / SrcW, 1 / SrcH, ExpPos, ExpNeg}
+
+#ifndef INTRINSIC_WAVESWIZZLE
+    groupshared float2 groupSharedData0[GROUP_SIZE_2D >> 1];
+#if USE_4_MOMENTS // Avoid bank conflicts using partial SoA layout
+    groupshared float2 groupSharedData1[GROUP_SIZE_2D >> 1];
+#endif // USE_4_MOMENTS
+#endif // INTRINSIC_WAVESWIZZLE
+
+#pragma kernel DownsampleShadowMaps
+
+[numthreads(GROUP_SIZE_2D, 1, 1)]
+void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
+                          uint  groupThreadId : SV_GroupThreadID)
+{
+    // We downsample 4x on each side, s.t. a 4K x 4K atlas becomes a 1K x 1K texture.
+    // Therefore, each thread downsamples 16 texels to 1.
+    // We downsample using the box filter (which means we return the average depth).
+    // This is a performance/quality trade-off for console.
+    const float weight = 1.0 / 16.0;
+
+    // We assume that the data is laid out in the Morton order. We then read it linearly.
+    const uint2  groupStart  = groupId * (GROUP_SIZE_1D * ITER_COUNT_1D);
+    const float2 threadCoord = DecodeMorton2D(groupThreadId & (GROUP_SIZE_2D - 1));
+
+    // Use a semi-persistent theadgroup to avoid hitting the HW wave launch rate limit.
+    for (uint j = 0; j < ITER_COUNT_1D; j++)
+    {
+        for (uint i = 0; i < ITER_COUNT_1D; i++)
+        {
+            uint2 batchCoord = uint2(i, j);
+            uint2 batchStart = groupStart + batchCoord * GROUP_SIZE_1D;
+
+            // We process a quad of texels per iteration per thread.
+            float4 depth;
+
+            // We don't bounds-check the coordinate. For sane atlas sizes, that's not necessary.
+            uint2 srcCoord = 2 * (batchStart + threadCoord);
+
+        #if USE_GATHER
+            float2 rcpSrcRes = _PassParams.xy;
+            float2 uv        = srcCoord * rcpSrcRes + rcpSrcRes;
+            depth = GATHER_TEXTURE2D_ARRAY(_Source, s_point_clamp_sampler, uv, 0);
+        #else
+            depth.x = LOAD_TEXTURE2D_ARRAY(_Source, srcCoord + uint2(0, 0), 0).r;
+            depth.y = LOAD_TEXTURE2D_ARRAY(_Source, srcCoord + uint2(1, 0), 0).r;
+            depth.z = LOAD_TEXTURE2D_ARRAY(_Source, srcCoord + uint2(0, 1), 0).r;
+            depth.w = LOAD_TEXTURE2D_ARRAY(_Source, srcCoord + uint2(1, 1), 0).r;
+        #endif
+
+            int k; // Stop the compiler from whining
+
+            float4 warpedMoments = 0;
+
+            for (k = 0; k < 4; k++)
+            {
+                float2 evsmExponents = _PassParams.zw;
+                float2 warpedDepth   = ShadowMoments_WarpDepth(depth[i], evsmExponents);
+
+                warpedMoments.x +=    warpedDepth.x;
+                warpedMoments.y += Sq(warpedDepth.x);
+            #if USE_4_MOMENTS
+                warpedMoments.z +=    warpedDepth.y;
+                warpedMoments.w += Sq(warpedDepth.y);
+            #endif
+            }
+
+            // Compute 16 partial sums as follows:
+            // 0 1 2 3
+            // |/  |/
+            // 0   2
+            // |  /
+            // | /
+            // 0
+
+            for (k = 0; k < 2; k++)
+            {
+            #ifdef INTRINSIC_WAVESWIZZLE
+                // Use WaveSwizzle(float x, uint andMask, uint orMask, uint xorMask),
+                // where srcLane = (dstLane & (32 | andMask) | orMask) ^ xorMask.
+                // With (andMask = 31), srcLane = (dstLane & 63 | orMask) ^ xorMask.
+                // Simplifying further, srcLane = (dstLane | orMask) ^ xorMask.
+                // With (orMask = 0),   srcLane = (dstLane ^ xorMask).
+                warpedMoments.x += WaveSwizzle(warpedMoments.x, 31, 0, 1 << k);
+                warpedMoments.y += WaveSwizzle(warpedMoments.y, 31, 0, 1 << k);
+            #if USE_4_MOMENTS
+                warpedMoments.z += WaveSwizzle(warpedMoments.z, 31, 0, 1 << k);
+                warpedMoments.w += WaveSwizzle(warpedMoments.w, 31, 0, 1 << k);
+            #endif
+            #else  // INTRINSIC_WAVESWIZZLE
+                if ((groupThreadId & ((2 << k) - 1)) == (1 << k))
+                {
+                    groupSharedData0[groupThreadId >> (k + 1)] = warpedMoments.xy;
+                #if USE_4_MOMENTS
+                    groupSharedData1[groupThreadId >> (k + 1)] = warpedMoments.zw;
+                #endif
+                }
+
+                GroupMemoryBarrierWithGroupSync();
+
+                if ((groupThreadId & ((2 << k) - 1)) == 0)
+                {
+                    warpedMoments.xy += groupSharedData0[groupThreadId >> (k + 1)];
+                #if USE_4_MOMENTS
+                    warpedMoments.zw += groupSharedData1[groupThreadId >> (k + 1)];
+                #endif
+                }
+
+                GroupMemoryBarrierWithGroupSync();
+            #endif // INTRINSIC_WAVESWIZZLE
+            }
+
+            // At this point, we have 16 partial sums of 16 texels each.
+            // We can normalize the weighted average and write it out.
+            if ((groupThreadId & 3) == 0)
+            {
+                // TODO: do not store incomplete cache lines.
+                // Store to LDS or VGPR first, and then write out the results for the entire wave.
+                uint3 dstCoord = uint3(srcCoord >> 2, 0);
+            #if USE_4_MOMENTS
+                // Have to swizzle here, and unswizzle in SampleShadow_EVSM_1tap_Impl().
+                // Annoying, but that's the way it works ATM.
+                _Destination[dstCoord] = weight * warpedMoments.xzyw;
+            #else
+                _Destination[dstCoord] = weight * warpedMoments.xy;
+            #endif
+            }
+        }
+    }
+}

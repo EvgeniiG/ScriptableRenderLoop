@@ -263,6 +263,7 @@ void SubsurfaceScattering(uint2 groupId       : SV_GroupID,
         float stencilRef = STENCILLIGHTINGUSAGE_SPLIT_LIGHTING;
 
         // Check whether the thread group needs to perform any work.
+        // TODO: use GatherCmp() for faster testing.
         float s00 = LOAD_TEXTURE2D(_SSSHTile, 2 * groupId + uint2(0, 0)).r;
         float s10 = LOAD_TEXTURE2D(_SSSHTile, 2 * groupId + uint2(1, 0)).r;
         float s01 = LOAD_TEXTURE2D(_SSSHTile, 2 * groupId + uint2(0, 1)).r;

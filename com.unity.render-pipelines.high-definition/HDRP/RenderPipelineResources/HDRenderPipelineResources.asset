@@ -86,3 +86,5 @@ MonoBehaviour:
   shadowBlurMoments: {fileID: 7200000, guid: fb36979473602464fa32deacb9630c08, type: 3}
   debugShadowMapShader: {fileID: 4800000, guid: ee25e539f5594f44085e0a9000c15d9b,
     type: 3}
+  downsampleShadowMaps: {fileID: 7200000, guid: a04b89758e856224f9d5f7f596983c94,
+    type: 3}

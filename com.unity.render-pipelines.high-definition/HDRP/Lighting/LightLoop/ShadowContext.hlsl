@@ -3,7 +3,7 @@
 
 #define SHADOWCONTEXT_MAX_TEX2DARRAY   1
 #define SHADOWCONTEXT_MAX_TEXCUBEARRAY 0
-#define SHADOWCONTEXT_MAX_SAMPLER      0
+#define SHADOWCONTEXT_MAX_SAMPLER      1
 #define SHADOWCONTEXT_MAX_COMPSAMPLER  1
 #define SHADOW_OPTIMIZE_REGISTER_USAGE 1
 
@@ -20,8 +20,13 @@ TEXTURE2D_ARRAY(_ShadowmapExp_VSM_2);
 SAMPLER(sampler_ShadowmapExp_VSM_2);
 #endif
 
-TEXTURE2D_ARRAY(_ShadowmapExp_PCF);
-SAMPLER_CMP(sampler_ShadowmapExp_PCF);
+#ifdef SHADOW_USE_PREFILTERED_SHADOWS
+    TEXTURE2D_ARRAY(_Shadowmap_EVSM);
+    // Reuse 's_linear_clamp_sampler' to avoid SGPR explosion.
+#else
+#endif
+    TEXTURE2D_ARRAY(_ShadowmapExp_PCF);
+    SAMPLER_CMP(sampler_ShadowmapExp_PCF);
 
 StructuredBuffer<ShadowData>    _ShadowDatasExp;
 StructuredBuffer<int4>          _ShadowPayloads;
@@ -33,8 +38,13 @@ ShadowContext InitShadowContext()
     ShadowContext sc;
     sc.shadowDatas     = _ShadowDatasExp;
     sc.payloads        = _ShadowPayloads;
+#ifdef SHADOW_USE_PREFILTERED_SHADOWS
+    sc.tex2DArray[0]   = _Shadowmap_EVSM;
+    sc.samplers[0]     = s_linear_clamp_sampler; // See ShaderVariables.hlsl
+#else
     sc.tex2DArray[0]   = _ShadowmapExp_PCF;
     sc.compSamplers[0] = sampler_ShadowmapExp_PCF;
+#endif
 #if SHADOWCONTEXT_MAX_TEX2DARRAY == 4
     sc.tex2DArray[1]   = _ShadowmapExp_VSM_0;
     sc.tex2DArray[2]   = _ShadowmapExp_VSM_1;

@@ -353,7 +353,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         private ComputeShader clearDispatchIndirectShader { get { return m_Resources.clearDispatchIndirectShader; } }
         private ComputeShader deferredComputeShader { get { return m_Resources.deferredComputeShader; } }
         private ComputeShader deferredDirectionalShadowComputeShader { get { return m_Resources.deferredDirectionalShadowComputeShader; } }
-
+        private ComputeShader downsampleShadowMapsShader { get { return m_Resources.downsampleShadowMaps; } }
 
         static int s_GenAABBKernel;
         static int s_GenListPerTileKernel;
@@ -374,6 +374,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
 
         static int s_deferredDirectionalShadowKernel;
         static int s_deferredDirectionalShadow_Contact_Kernel;
+        static int s_downsampleShadowMapsKernel;
 
         static ComputeBuffer s_LightVolumeDataBuffer = null;
         static ComputeBuffer s_ConvexBoundsBuffer = null;
@@ -440,6 +441,19 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         IShadowManager          m_ShadowMgr;
         List<int>               m_ShadowRequests = new List<int>();
         Dictionary<int, int>    m_ShadowIndices = new Dictionary<int, int>();
+
+        public struct EvsmData
+        {
+            public Vector4                 parameters;                   // { X = lightLeakBias, Y = varianceBias, ZW = evsmExponents }
+            public RTHandleSystem.RTHandle downsampledShadowAtlas;
+            public int                     sourceShadowAtlasWidth;       // It appears to be difficult to query the size of the atlas.
+            public int                     sourceShadowAtlasHeight;      // Therefore, we store it here for easier access.
+            public int                     downsampledShadowAtlasWidth;
+            public int                     downsampledShadowAtlasHeight;
+        }
+
+        EvsmData m_GlobalEvsmData; // Currently only used for volumetrics
+        public EvsmData GetGlobalEvsmData() { return m_GlobalEvsmData; }
 
         void InitShadowSystem(HDRenderPipelineAsset hdAsset, ShadowSettings shadowSettings)
         {
@@ -556,6 +570,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
 
             s_deferredDirectionalShadowKernel = deferredDirectionalShadowComputeShader.FindKernel("DeferredDirectionalShadow");
             s_deferredDirectionalShadow_Contact_Kernel = deferredDirectionalShadowComputeShader.FindKernel("DeferredDirectionalShadow_Contact");
+            s_downsampleShadowMapsKernel = downsampleShadowMapsShader.FindKernel("DownsampleShadowMaps");
 
             for (int variant = 0; variant < LightDefinitions.s_NumFeatureVariants; variant++)
             {
@@ -607,10 +622,38 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
             m_DefaultTextureCube.Apply();
 
             InitShadowSystem(hdAsset, shadowSettings);
+
+            if (hdAsset.renderPipelineSettings.supportVolumetric)
+            {
+                m_GlobalEvsmData.sourceShadowAtlasWidth  = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasWidth;
+                m_GlobalEvsmData.sourceShadowAtlasHeight = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasHeight;
+
+                int w = m_GlobalEvsmData.sourceShadowAtlasWidth  / 4;
+                int h = m_GlobalEvsmData.sourceShadowAtlasHeight / 4;
+
+                m_GlobalEvsmData.downsampledShadowAtlasWidth  = w;
+                m_GlobalEvsmData.downsampledShadowAtlasHeight = h;
+
+                // The shadow system expects the atlas to be an array texture of size 1.
+                m_GlobalEvsmData.downsampledShadowAtlas = RTHandles.Alloc(w, h, 1, dimension: TextureDimension.Tex2DArray, colorFormat: RenderTextureFormat.RGFloat, sRGB: false, enableRandomWrite: true, name: "DownsamplesShadowAtlas");
+
+                // We need to pass the following data to the shader:
+                // real  lightLeakBias = params.x;
+                // real  varianceBias  = params.y;
+                // real2 evsmExponents = params.zw;
+                // For details, see `ShadowVariance`.
+                // m_DefEVSM_LightLeakBias   = new ValRange( "Light leak bias"   , 0.0f, 0.0f    ,  0.99f , 1.0f   );
+                // m_DefEVSM_VarianceBias    = new ValRange( "Variance bias"     , 0.0f, 0.1f    ,  1.0f  , 0.01f  );
+                // m_DefEVSM_PosExponent_32  = new ValRange( "Positive Exponent" , 1.0f, 1.0f    , 42.0f  , 1.0f   );
+                // m_DefEVSM_NegExponent_32  = new ValRange( "Negative Exponent" , 1.0f, 1.0f    , 42.0f  , 1.0f   );
+                m_GlobalEvsmData.parameters = new Vector4(0.0f, 0.0001f, 40.0f, 40.0f);
+            }
         }
 
         public void Cleanup()
         {
+            RTHandles.Release(m_GlobalEvsmData.downsampledShadowAtlas);
+
             DeinitShadowSystem();
 
             CoreUtils.Destroy(m_DefaultTexture2DArray);
@@ -2286,6 +2329,32 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         {
             // kick off the shadow jobs here
             m_ShadowMgr.RenderShadows(m_FrameId, renderContext, cmd, cullResults, cullResults.visibleLights);
+        }
+
+        public void DownsampleShadowMaps(CommandBuffer cmd)
+        {
+            using (new ProfilingSample(cmd, "Downsample Shadow Maps", CustomSamplerId.DownsampleShadowMaps.GetSampler()))
+            {
+                int srcW = m_GlobalEvsmData.sourceShadowAtlasWidth;
+                int srcH = m_GlobalEvsmData.sourceShadowAtlasHeight;
+                int dstW = m_GlobalEvsmData.downsampledShadowAtlasWidth;
+                int dstH = m_GlobalEvsmData.downsampledShadowAtlasHeight;
+
+                Vector4 passParams = m_GlobalEvsmData.parameters; // Set the exponents
+                passParams.x = 1.0f / srcW;
+                passParams.y = 1.0f / srcH;
+
+                // Get the source texture.
+                // This does the following:
+                // cb.SetGlobalBuffer(HDShaderIDs._ShadowDatasExp, s_ShadowDataBuffer);
+                // cb.SetGlobalBuffer(HDShaderIDs._ShadowPayloads, s_ShadowPayloadBuffer);
+                // cb.SetGlobalTexture(HDShaderIDs._ShadowmapExp_PCF, tex[0]);
+                // We are only interested in the texture, but there's no way to communicate it to the Shadow Framework at the moment.
+                m_ShadowMgr.BindResources(cmd, downsampleShadowMapsShader, s_downsampleShadowMapsKernel);
+                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._Destination, m_GlobalEvsmData.downsampledShadowAtlas.rt);
+                cmd.SetComputeVectorParam(downsampleShadowMapsShader, HDShaderIDs._PassParams, passParams);
+                cmd.DispatchCompute(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, dstW / 8, dstH / 8, 1); // GroupSize = 64
+            }
         }
 
         public struct LightingPassOptions

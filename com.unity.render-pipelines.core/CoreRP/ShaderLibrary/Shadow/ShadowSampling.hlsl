@@ -398,24 +398,16 @@ real SampleShadow_VSM_1tap(ShadowContext shadowContext, inout uint payloadOffset
 //
 //                  1 tap EVSM sampling
 //
-real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, uint texIdx, uint sampIdx, bool fourMoments )
+real SampleShadow_EVSM_1tap_Impl( real depth, real4 moments, real4 params, bool fourMoments )
 {
-#if UNITY_REVERSED_Z
-    real  depth      = 1.0 - tcs.z;
-#else
-    real  depth      = tcs.z;
-#endif
-    real4 params         = asfloat( shadowContext.payloads[payloadOffset] );
     real  lightLeakBias = params.x;
-    real  varianceBias   = params.y;
+    real  varianceBias  = params.y;
     real2 evsmExponents = params.zw;
-    payloadOffset++;
 
     real2 warpedDepth = ShadowMoments_WarpDepth( depth, evsmExponents );
 
-    real4 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice );
-
     // Derivate of warping at depth
+    // TODO: make sure it works for UNITY_REVERSED_Z.
     real2 depthScale  = evsmExponents * warpedDepth;
     real2 minVariance = depthScale * depthScale * varianceBias;
 
@@ -430,42 +422,40 @@ real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffs
     {
         return ShadowMoments_ChebyshevsInequality( moments.xy, warpedDepth.x, minVariance.x, lightLeakBias );
     }
+}
+
+real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, uint texIdx, uint sampIdx, bool fourMoments )
+{
+
+#ifdef SHADOW_EVSM_USE_GLOBAL_PARAMS
+    real4 params = _EvsmParams;
+#else
+    real4 params = asfloat( shadowContext.payloads[payloadOffset] );
+#endif
+    payloadOffset++;
+
+    // TODO: anisotropic filtering using coordinate gradients.
+    real4 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice );
+    real  depth   = tcs.z;
+
+    return SampleShadow_EVSM_1tap_Impl( depth, moments, params, fourMoments );
 }
 
 real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, Texture2DArray tex, SamplerState samp, bool fourMoments )
 {
-#if UNITY_REVERSED_Z
-    real  depth      = 1.0 - tcs.z;
+#ifdef SHADOW_EVSM_USE_GLOBAL_PARAMS
+    real4 params = _EvsmParams;
 #else
-    real  depth      = tcs.z;
+    real4 params = asfloat( shadowContext.payloads[payloadOffset] );
 #endif
-    real4 params         = asfloat( shadowContext.payloads[payloadOffset] );
-    real  lightLeakBias = params.x;
-    real  varianceBias  = params.y;
-    real2 evsmExponents = params.zw;
     payloadOffset++;
 
-    real2 warpedDepth = ShadowMoments_WarpDepth( depth, evsmExponents );
-
+    // TODO: anisotropic filtering using coordinate gradients.
     real4 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, 0.0 );
+    real  depth   = tcs.z;
 
-    // Derivate of warping at depth
-    real2 depthScale  = evsmExponents * warpedDepth;
-    real2 minVariance = depthScale * depthScale * varianceBias;
-
-    UNITY_BRANCH
-    if( fourMoments )
-    {
-        real posContrib = ShadowMoments_ChebyshevsInequality( moments.xz, warpedDepth.x, minVariance.x, lightLeakBias );
-        real negContrib = ShadowMoments_ChebyshevsInequality( moments.yw, warpedDepth.y, minVariance.y, lightLeakBias );
-        return min( posContrib, negContrib );
-    }
-    else
-    {
-        return ShadowMoments_ChebyshevsInequality( moments.xy, warpedDepth.x, minVariance.x, lightLeakBias );
-    }
+    return SampleShadow_EVSM_1tap_Impl( depth, moments, params, fourMoments );
 }
-
 
 //
 //                  1 tap MSM sampling

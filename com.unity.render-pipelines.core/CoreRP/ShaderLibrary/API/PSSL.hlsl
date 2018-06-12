@@ -8,6 +8,8 @@
 #define BitFieldInsert __v_bfi_b32
 #define INTRINSIC_WAVEREADFIRSTLANE
 #define WaveReadFirstLane ReadFirstLane
+#define INTRINSIC_WAVESWIZZLE
+#define WaveSwizzle LaneSwizzle
 #define INTRINSIC_MAD24
 #define Mad24 mad24
 #define INTRINSIC_MINMAX3

@@ -354,6 +354,12 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         public static readonly int _Source4 = Shader.PropertyToID("_Source4");
         public static readonly int _Result1 = Shader.PropertyToID("_Result1");
 
+        public static readonly int _EvsmParams     = Shader.PropertyToID("_EvsmParams");
+        public static readonly int _Shadowmap_EVSM = Shader.PropertyToID("_Shadowmap_EVSM");
+
+        public static readonly int _Destination = Shader.PropertyToID("_Destination");
+        public static readonly int _PassParams  = Shader.PropertyToID("_PassParams");
+
         public static readonly int _AtmosphericScatteringType      = Shader.PropertyToID("_AtmosphericScatteringType");
         public static readonly int _AmbientProbeCoeffs             = Shader.PropertyToID("_AmbientProbeCoeffs");
         public static readonly int _GlobalExtinction               = Shader.PropertyToID("_GlobalExtinction");

@@ -8,24 +8,44 @@
 // for us t is depth, u is E(x) i.d. the blurred depth
 float ShadowMoments_ChebyshevsInequality( float2 moments, float depth, float minVariance, float lightLeakBias )
 {
+    float mean = moments.x;
+
+#if UNITY_REVERSED_Z
+    depth = min(depth, mean);
+#else
+    depth = max(depth, mean);
+#endif
+
     // variance sig^2 = E(x^2) - E(x)^2
-    float variance = max( moments.y - (moments.x * moments.x), minVariance );
+    float variance = max( moments.y - mean * mean, minVariance );
 
     // probabilistic upper bound
-    float mD = depth - moments.x;
+    float mD = depth - mean;
     float p = variance / (variance + mD * mD);
 
+    // TODO: this code is inefficient. It's better to use precomputed factors:
+    // p = saturate( p * (1.0 / (1.0 - lightLeakBias)) - (lightLeakBias / (1.0 - lightLeakBias)) );
+    // p = saturate( p * a - b );
     p = saturate( (p - lightLeakBias) / (1.0 - lightLeakBias) );
-    return max( p, depth <= moments.x );
+
+    return p;
 }
 
 // helper for EVSM
 float2 ShadowMoments_WarpDepth( float depth, float2 exponents )
 {
-    // Rescale depth into [-1;1]
+    // Rescale the depth into [-1, 1]. This improves precision (assuming FP32 storage).
     depth = 2.0 * depth - 1.0;
+
+#if 0
     float pos =  exp( exponents.x * depth );
     float neg = -exp(-exponents.y * depth );
+#else
+    // Hardware doesn't have an exp() instruction. Instead, it does exp2(log2(e) * x).
+    // Therefore, we can fold the constant into the exponent, and use exp2() instead.
+    float pos =  exp2( exponents.x * depth );
+    float neg = -exp2(-exponents.y * depth );
+#endif
     return float2( pos, neg );
 }
 

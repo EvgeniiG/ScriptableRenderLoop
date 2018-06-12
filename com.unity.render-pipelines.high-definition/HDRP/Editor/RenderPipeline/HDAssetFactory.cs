@@ -114,9 +114,10 @@ namespace UnityEditor.Experimental.Rendering.HDPipeline
                 newAsset.blitCubeTextureFace = Load<Shader>(CorePath + "CoreResources/BlitCubeTextureFace.shader");
 
                 // Shadow
-                newAsset.shadowClearShader = Load<Shader>(CorePath + "Shadow/ShadowClear.shader");
-                newAsset.shadowBlurMoments = Load<ComputeShader>(CorePath + "Shadow/ShadowBlurMoments.compute");
+                newAsset.shadowClearShader    = Load<Shader>(CorePath + "Shadow/ShadowClear.shader");
+                newAsset.shadowBlurMoments    = Load<ComputeShader>(CorePath + "Shadow/ShadowBlurMoments.compute");
                 newAsset.debugShadowMapShader = Load<Shader>(CorePath + "Shadow/DebugDisplayShadowMap.shader");
+                newAsset.downsampleShadowMaps = Load<ComputeShader>(HDRenderPipelinePath + "RenderPipelineResources/DownsampleShadowMaps.compute"); // HD-specific, not Core
 
                 AssetDatabase.CreateAsset(newAsset, pathName);
                 ProjectWindowUtil.ShowCreatedAsset(newAsset);

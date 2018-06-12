@@ -4,7 +4,9 @@
 #define SHADOW_DISPATCH_USE_CUSTOM_DIRECTIONAL
 #define SHADOW_DISPATCH_USE_CUSTOM_PUNCTUAL
 
-#define SHADOW_USE_VIEW_BIAS_SCALING            1   // Enable view bias scaling to mitigate light leaking across edges. Uses the light vector if SHADOW_USE_ONLY_VIEW_BASED_BIASING is defined, otherwise uses the normal.
+#ifndef SHADOW_USE_VIEW_BIAS_SCALING                // Allow it to be overridden
+    #define SHADOW_USE_VIEW_BIAS_SCALING        1   // Enable view bias scaling to mitigate light leaking across edges. Uses the light vector if SHADOW_USE_ONLY_VIEW_BASED_BIASING is defined, otherwise uses the normal.
+#endif // SHADOW_USE_VIEW_BIAS_SCALING
 // Note: Sample biasing work well but is very costly in term of VGPR, disable it for now
 #define SHADOW_USE_SAMPLE_BIASING               0   // Enable per sample biasing for wide multi-tap PCF filters. Incompatible with SHADOW_USE_ONLY_VIEW_BASED_BIASING.
 #define SHADOW_USE_DEPTH_BIAS                   0   // Enable clip space z biasing
@@ -25,39 +27,68 @@
 //#define SHADOW_DISPATCH_USE_SEPARATE_PUNC_ALGOS       // enables separate resources and algorithms for spot and point lights
 
 // directional
-#define SHADOW_DISPATCH_DIR_TEX   0
-#define SHADOW_DISPATCH_DIR_SMP   0
-#define SHADOW_DISPATCH_DIR_ALG   GPUSHADOWALGORITHM_PCF_TENT_5X5   // all cascades
-#define SHADOW_DISPATCH_DIR_ALG_0 GPUSHADOWALGORITHM_PCF_TENT_7X7   // 1st cascade
-#define SHADOW_DISPATCH_DIR_ALG_1 GPUSHADOWALGORITHM_PCF_TENT_5X5   // 2nd cascade
-#define SHADOW_DISPATCH_DIR_ALG_2 GPUSHADOWALGORITHM_PCF_TENT_3X3   // 3rd cascade
-#define SHADOW_DISPATCH_DIR_ALG_3 GPUSHADOWALGORITHM_PCF_1TAP       // 4th cascade
+#define SHADOW_DISPATCH_DIR_TEX 0
+#define SHADOW_DISPATCH_DIR_SMP 0
+#ifdef SHADOW_OVERRIDE_ALGORITM
+    #define SHADOW_DISPATCH_DIR_ALG   SHADOW_OVERRIDE_ALGORITM        // all cascades
+    #define SHADOW_DISPATCH_DIR_ALG_0 SHADOW_OVERRIDE_ALGORITM        // 1st cascade
+    #define SHADOW_DISPATCH_DIR_ALG_1 SHADOW_OVERRIDE_ALGORITM        // 2nd cascade
+    #define SHADOW_DISPATCH_DIR_ALG_2 SHADOW_OVERRIDE_ALGORITM        // 3rd cascade
+    #define SHADOW_DISPATCH_DIR_ALG_3 SHADOW_OVERRIDE_ALGORITM        // 4th cascade
+#else // set defaults if not overridden
+    #define SHADOW_DISPATCH_DIR_ALG   GPUSHADOWALGORITHM_PCF_TENT_5X5 // all cascades
+    #define SHADOW_DISPATCH_DIR_ALG_0 GPUSHADOWALGORITHM_PCF_TENT_7X7 // 1st cascade
+    #define SHADOW_DISPATCH_DIR_ALG_1 GPUSHADOWALGORITHM_PCF_TENT_5X5 // 2nd cascade
+    #define SHADOW_DISPATCH_DIR_ALG_2 GPUSHADOWALGORITHM_PCF_TENT_3X3 // 3rd cascade
+    #define SHADOW_DISPATCH_DIR_ALG_3 GPUSHADOWALGORITHM_PCF_1TAP     // 4th cascade
+#endif // SHADOW_OVERRIDE_ALGORITM
+
 // point
 #define SHADOW_DISPATCH_POINT_TEX 0
 #define SHADOW_DISPATCH_POINT_SMP 0
-#define SHADOW_DISPATCH_POINT_ALG GPUSHADOWALGORITHM_PCF_TENT_3X3
+#ifdef SHADOW_OVERRIDE_ALGORITM
+    #define SHADOW_DISPATCH_POINT_ALG SHADOW_OVERRIDE_ALGORITM
+#else // set defaults if not overridden
+    #define SHADOW_DISPATCH_POINT_ALG GPUSHADOWALGORITHM_PCF_TENT_3X3
+#endif // SHADOW_OVERRIDE_ALGORITM
+
 // spot
 #define SHADOW_DISPATCH_SPOT_TEX 0
 #define SHADOW_DISPATCH_SPOT_SMP 0
-#define SHADOW_DISPATCH_SPOT_ALG GPUSHADOWALGORITHM_PCF_TENT_3X3
+#ifdef SHADOW_OVERRIDE_ALGORITM
+    #define SHADOW_DISPATCH_SPOT_ALG SHADOW_OVERRIDE_ALGORITM
+#else // set defaults if not overridden
+    #define SHADOW_DISPATCH_SPOT_ALG GPUSHADOWALGORITHM_PCF_TENT_3X3
+#endif // SHADOW_OVERRIDE_ALGORITM
+
 //punctual
 #define SHADOW_DISPATCH_PUNC_TEX 0
 #define SHADOW_DISPATCH_PUNC_SMP 0
-#define SHADOW_DISPATCH_PUNC_ALG GPUSHADOWALGORITHM_PCF_TENT_3X3
+#ifdef SHADOW_OVERRIDE_ALGORITM
+    #define SHADOW_DISPATCH_PUNC_ALG SHADOW_OVERRIDE_ALGORITM
+#else // set defaults if not overridden
+    #define SHADOW_DISPATCH_PUNC_ALG GPUSHADOWALGORITHM_PCF_TENT_3X3
+#endif // SHADOW_OVERRIDE_ALGORITM
 
 // example of overriding directional lights
 #ifdef  SHADOW_DISPATCH_USE_CUSTOM_DIRECTIONAL
 float GetDirectionalShadowAttenuation( ShadowContext shadowContext, float3 positionWS, float3 normalWS, int shadowDataIndex, float3 L )
 {
-    Texture2DArray          tex      = shadowContext.tex2DArray[SHADOW_DISPATCH_DIR_TEX];
-    SamplerComparisonState  compSamp = shadowContext.compSamplers[SHADOW_DISPATCH_DIR_SMP];
+    Texture2DArray          tex  = shadowContext.tex2DArray[SHADOW_DISPATCH_DIR_TEX];
+
+#ifdef SHADOW_USE_PREFILTERED_SHADOWS
+    SamplerState            samp = shadowContext.samplers[SHADOW_DISPATCH_DIR_SMP];
+#else
+    SamplerComparisonState  samp = shadowContext.compSamplers[SHADOW_DISPATCH_DIR_SMP];
+#endif
+
 #ifdef SHADOW_DISPATCH_USE_SEPARATE_CASCADE_ALGOS
     uint                    algo[kMaxShadowCascades] = { SHADOW_DISPATCH_DIR_ALG_0, SHADOW_DISPATCH_DIR_ALG_1, SHADOW_DISPATCH_DIR_ALG_2, SHADOW_DISPATCH_DIR_ALG_3 };
 #else
     uint                    algo = SHADOW_DISPATCH_DIR_ALG;
 #endif
 
-    return EvalShadow_CascadedDepth_Blend( shadowContext, algo, tex, compSamp, positionWS, normalWS, shadowDataIndex, L );
+    return EvalShadow_CascadedDepth_Blend( shadowContext, algo, tex, samp, positionWS, normalWS, shadowDataIndex, L );
 }
 
 float GetDirectionalShadowAttenuation( ShadowContext shadowContext, float3 positionWS, float3 normalWS, int shadowDataIndex, float3 L, float2 positionSS )
@@ -86,24 +117,36 @@ float GetPunctualShadowAttenuation( ShadowContext shadowContext, float3 position
     UNITY_BRANCH
     if( shadowType == GPUSHADOWTYPE_POINT )
     {
-        Texture2DArray          tex      = shadowContext.tex2DArray[SHADOW_DISPATCH_POINT_TEX];
-        SamplerComparisonState  compSamp = shadowContext.compSamplers[SHADOW_DISPATCH_POINT_SMP];
-        uint                    algo     = SHADOW_DISPATCH_POINT_ALG;
-        return EvalShadow_PointDepth( shadowContext, algo, tex, compSamp, positionWS, normalWS, shadowDataIndex, L, L_dist );
+        Texture2DArray          tex  = shadowContext.tex2DArray[SHADOW_DISPATCH_POINT_TEX];
+    #ifdef SHADOW_USE_PREFILTERED_SHADOWS
+        SamplerState            samp = shadowContext.samplers[SHADOW_DISPATCH_POINT_SMP];
+    #else
+        SamplerComparisonState  samp = shadowContext.compSamplers[SHADOW_DISPATCH_POINT_SMP];
+    #endif
+        uint                    algo = SHADOW_DISPATCH_POINT_ALG;
+        return EvalShadow_PointDepth( shadowContext, algo, tex, samp, positionWS, normalWS, shadowDataIndex, L, L_dist );
     }
     else
     {
-        Texture2DArray          tex      = shadowContext.tex2DArray[SHADOW_DISPATCH_SPOT_TEX];
-        SamplerComparisonState  compSamp = shadowContext.compSamplers[SHADOW_DISPATCH_SPOT_SMP];
-        uint                    algo     = SHADOW_DISPATCH_SPOT_ALG;
-        return EvalShadow_SpotDepth( shadowContext, algo, tex, compSamp, positionWS, normalWS, shadowDataIndex, L, L_dist );
+        Texture2DArray          tex  = shadowContext.tex2DArray[SHADOW_DISPATCH_SPOT_TEX];
+    #ifdef SHADOW_USE_PREFILTERED_SHADOWS
+        SamplerState            samp = shadowContext.samplers[SHADOW_DISPATCH_SPOT_SMP];
+    #else
+        SamplerComparisonState  samp = shadowContext.compSamplers[SHADOW_DISPATCH_SPOT_SMP];
+    #endif
+        uint                    algo = SHADOW_DISPATCH_SPOT_ALG;
+        return EvalShadow_SpotDepth( shadowContext, algo, tex, samp, positionWS, normalWS, shadowDataIndex, L, L_dist );
     }
 #else
     // example for choosing the same algo
-    Texture2DArray          tex      = shadowContext.tex2DArray[SHADOW_DISPATCH_PUNC_TEX];
-    SamplerComparisonState  compSamp = shadowContext.compSamplers[SHADOW_DISPATCH_PUNC_SMP];
-    uint                    algo     = SHADOW_DISPATCH_PUNC_ALG;
-    return EvalShadow_PunctualDepth( shadowContext, algo, tex, compSamp, positionWS, normalWS, shadowDataIndex, L, L_dist );
+    Texture2DArray              tex  = shadowContext.tex2DArray[SHADOW_DISPATCH_PUNC_TEX];
+    #ifdef SHADOW_USE_PREFILTERED_SHADOWS
+        SamplerState            samp = shadowContext.samplers[SHADOW_DISPATCH_POINT_SMP];
+    #else
+        SamplerComparisonState  samp = shadowContext.compSamplers[SHADOW_DISPATCH_POINT_SMP];
+    #endif
+    uint                        algo = SHADOW_DISPATCH_PUNC_ALG;
+    return EvalShadow_PunctualDepth( shadowContext, algo, tex, samp, positionWS, normalWS, shadowDataIndex, L, L_dist );
 #endif
 }
 float GetPunctualShadowAttenuation( ShadowContext shadowContext, float3 positionWS, float3 normalWS, int shadowDataIndex, float3 L, float L_dist, float2 positionSS )

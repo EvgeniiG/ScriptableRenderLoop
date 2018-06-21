@@ -635,7 +635,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 m_GlobalEvsmData.downsampledShadowAtlasHeight = h;
 
                 // The shadow system expects the atlas to be an array texture of size 1.
-                m_GlobalEvsmData.downsampledShadowAtlas = RTHandles.Alloc(w, h, 1, dimension: TextureDimension.Tex2DArray, colorFormat: RenderTextureFormat.RGFloat, sRGB: false, enableRandomWrite: true, name: "DownsamplesShadowAtlas");
+                m_GlobalEvsmData.downsampledShadowAtlas = RTHandles.Alloc(w, h, 1, dimension: TextureDimension.Tex2DArray, colorFormat: RenderTextureFormat.RGFloat, sRGB: false, enableRandomWrite: true, useMipMap: true, name: "DownsamplesShadowAtlas");
 
                 // We need to pass the following data to the shader:
                 // real  lightLeakBias = params.x;
@@ -2351,9 +2351,20 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 // cb.SetGlobalTexture(HDShaderIDs._ShadowmapExp_PCF, tex[0]);
                 // We are only interested in the texture, but there's no way to communicate it to the Shadow Framework at the moment.
                 m_ShadowMgr.BindResources(cmd, downsampleShadowMapsShader, s_downsampleShadowMapsKernel);
-                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._Destination, m_GlobalEvsmData.downsampledShadowAtlas.rt);
                 cmd.SetComputeVectorParam(downsampleShadowMapsShader, HDShaderIDs._PassParams, passParams);
+            #if SUPPORT_UAV_MIPS // Waiting for a C++ PR...
+                // Note that we only fill the first 4 MIP levels. The rest of the levels are black!
+                // This will probably result in complete shadowing in the distance (TODO: test this with EVSM).
+                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._DestinationMip0, m_GlobalEvsmData.downsampledShadowAtlas.rt, 0);
+                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._DestinationMip1, m_GlobalEvsmData.downsampledShadowAtlas.rt, 1);
+                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._DestinationMip2, m_GlobalEvsmData.downsampledShadowAtlas.rt, 2);
+                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._DestinationMip3, m_GlobalEvsmData.downsampledShadowAtlas.rt, 3);
                 cmd.DispatchCompute(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, dstW / 8, dstH / 8, 1); // GroupSize = 64
+            #else // Temp workaround, slower and cannot be async
+                cmd.SetComputeTextureParam(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, HDShaderIDs._DestinationMip0, m_GlobalEvsmData.downsampledShadowAtlas.rt);
+                cmd.DispatchCompute(downsampleShadowMapsShader, s_downsampleShadowMapsKernel, dstW / 8, dstH / 8, 1); // GroupSize = 64
+                cmd.GenerateMips(m_GlobalEvsmData.downsampledShadowAtlas.rt);
+            #endif
             }
         }
 

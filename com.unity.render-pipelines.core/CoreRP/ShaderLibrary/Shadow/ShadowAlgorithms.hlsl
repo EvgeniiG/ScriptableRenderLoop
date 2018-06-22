@@ -239,6 +239,8 @@ real EvalShadow_PointDepth( ShadowContext shadowContext, real3 positionWS, real3
     positionWS = EvalShadow_ReceiverBias( sd, positionWS, normalWS, L, L_dist, recvBiasWeight, true );
     // get shadowmap texcoords
     real3 posTC = EvalShadow_GetTexcoords( sd, positionWS, true );
+    // If we are closer than the near plane, return 1 (not in shadow).
+    if (COMPARE_DEVICE_DEPTH_CLOSEREQUAL(posTC.z, UNITY_NEAR_CLIP_VALUE)) return 1;
     // get the per sample bias
     real2 sampleBias = EvalShadow_SampleBias_Persp( sd, positionWS, normalWS, posTC );
     // sample the texture according to the given algorithm
@@ -255,6 +257,8 @@ real EvalShadow_PointDepth( ShadowContext shadowContext, real3 positionWS, real3
         positionWS = EvalShadow_ReceiverBias( sd, positionWS, normalWS, L, L_dist, recvBiasWeight, true );                                                                                      \
         /* get shadowmap texcoords */                                                                                                                                                           \
         real3  posTC = EvalShadow_GetTexcoords( sd, positionWS, true );                                                                                                                         \
+        /* If we are closer than the near plane, return 1 (not in shadow). */                                                                                                                   \
+        if (COMPARE_DEVICE_DEPTH_CLOSEREQUAL(posTC.z, UNITY_NEAR_CLIP_VALUE)) return 1;                                                                                                         \
         /* get the per sample bias */                                                                                                                                                           \
         real2  sampleBias = EvalShadow_SampleBias_Persp( sd, positionWS, normalWS, posTC );                                                                                                     \
         /* sample the texture */                                                                                                                                                                \
@@ -283,6 +287,8 @@ real EvalShadow_SpotDepth( ShadowContext shadowContext, real3 positionWS, real3 
     positionWS = EvalShadow_ReceiverBias( sd, positionWS, normalWS, L, L_dist, recvBiasWeight, true );
     // get shadowmap texcoords
     real3 posTC = EvalShadow_GetTexcoords( sd, positionWS, true );
+    // If we are closer than the near plane, return 1 (not in shadow).
+    if (COMPARE_DEVICE_DEPTH_CLOSEREQUAL(posTC.z, UNITY_NEAR_CLIP_VALUE)) return 1;
     // get the per sample bias
     real2 sampleBias = EvalShadow_SampleBias_Persp( sd, positionWS, normalWS, posTC );
     // sample the texture according to the given algorithm
@@ -300,6 +306,8 @@ real EvalShadow_SpotDepth( ShadowContext shadowContext, real3 positionWS, real3 
         positionWS = EvalShadow_ReceiverBias( sd, positionWS, normalWS, L, L_dist, recvBiasWeight, true );                                                                                      \
         /* get shadowmap texcoords */                                                                                                                                                           \
         real3 posTC = EvalShadow_GetTexcoords( sd, positionWS, true );                                                                                                                          \
+        /* If we are closer than the near plane, return 1 (not in shadow). */                                                                                                                   \
+        if (COMPARE_DEVICE_DEPTH_CLOSEREQUAL(posTC.z, UNITY_NEAR_CLIP_VALUE)) return 1;                                                                                                         \
         /* get the per sample bias */                                                                                                                                                           \
         real2  sampleBias = EvalShadow_SampleBias_Persp( sd, positionWS, normalWS, posTC );                                                                                                     \
         /* sample the texture */                                                                                                                                                                \
@@ -339,6 +347,8 @@ real EvalShadow_PunctualDepth( ShadowContext shadowContext, real3 positionWS, re
     positionWS = EvalShadow_ReceiverBias( sd, positionWS, normalWS, L, L_dist, recvBiasWeight, true );
     // get shadowmap texcoords
     real3 posTC = EvalShadow_GetTexcoords( sd, positionWS, true );
+    // If we are closer than the near plane, return 1 (not in shadow).
+    if (COMPARE_DEVICE_DEPTH_CLOSEREQUAL(posTC.z, UNITY_NEAR_CLIP_VALUE)) return 1;
     // get the per sample bias
     real2 sampleBias = EvalShadow_SampleBias_Persp( sd, positionWS, normalWS, posTC );
     // sample the texture according to the given algorithm
@@ -372,6 +382,8 @@ real EvalShadow_PunctualDepth( ShadowContext shadowContext, real3 positionWS, re
         positionWS = EvalShadow_ReceiverBias( sd, positionWS, normalWS, L, L_dist, recvBiasWeight, true );                                                                                          \
         /* get shadowmap texcoords */                                                                                                                                                               \
         real3 posTC = EvalShadow_GetTexcoords( sd, positionWS, true );                                                                                                                              \
+        /* If we are closer than the near plane, return 1 (not in shadow). */                                                                                                                       \
+        if (COMPARE_DEVICE_DEPTH_CLOSEREQUAL(posTC.z, UNITY_NEAR_CLIP_VALUE)) return 1;                                                                                                             \
         /* get the per sample bias */                                                                                                                                                               \
         real2  sampleBias = EvalShadow_SampleBias_Persp( sd, positionWS, normalWS, posTC );                                                                                                         \
         /* sample the texture */                                                                                                                                                                    \

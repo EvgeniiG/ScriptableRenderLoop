@@ -34,9 +34,14 @@ CBUFFER_END
 
 #define SHADOW_USE_ONLY_VIEW_BASED_BIASING 1 // We don't use normal biasing as it is not available when doing volumetric
 #define SHADOW_USE_VIEW_BIAS_SCALING       0 // No biasing, please
-#define SHADOW_USE_PREFILTERED_SHADOWS
-#define SHADOW_EVSM_USE_GLOBAL_PARAMS
-#define SHADOW_OVERRIDE_ALGORITM GPUSHADOWALGORITHM_EVSM_2
+#define SUPPORT_PUNCTUAL_LIGHTS            1 // Punctual lights contribute to fog lighting
+#define USE_PREFILTERED_SHADOWS            1 // Uses a low-resolution EVSM shadow map
+
+#if USE_PREFILTERED_SHADOWS
+    #define SHADOW_USE_PREFILTERED_SHADOWS
+    #define SHADOW_EVSM_USE_GLOBAL_PARAMS
+    #define SHADOW_OVERRIDE_ALGORITM GPUSHADOWALGORITHM_EVSM_2
+#endif
 
 #include "../../ShaderPass/ShaderPass.cs.hlsl"
 #define SHADERPASS SHADERPASS_VOLUMETRIC_LIGHTING
@@ -51,8 +56,6 @@ CBUFFER_END
     #define VBUFFER_TILE_SIZE   4
     #define VBUFFER_SLICE_COUNT 128
 #endif
-
-#define SUPPORT_PUNCTUAL_LIGHTS 1 // Punctual lights contribute to fog lighting
 
 #define GROUP_SIZE_1D 8
 

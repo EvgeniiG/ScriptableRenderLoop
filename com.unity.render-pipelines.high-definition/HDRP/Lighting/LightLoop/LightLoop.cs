@@ -647,7 +647,10 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 m_GlobalEvsmData.downsampledShadowAtlasHeight = h;
 
                 // The shadow system expects the atlas to be an array texture of size 1.
-                m_GlobalEvsmData.downsampledShadowAtlas = RTHandles.Alloc(w, h, 1, dimension: TextureDimension.Tex2DArray, colorFormat: RenderTextureFormat.RGFloat, sRGB: false, enableRandomWrite: true, useMipMap: true, name: "DownsamplesShadowAtlas");
+                m_GlobalEvsmData.downsampledShadowAtlas = RTHandles.Alloc(w, h, 1, dimension: TextureDimension.Tex2DArray,
+                                                                          colorFormat: RenderTextureFormat.RGFloat, sRGB: false,
+                                                                          enableRandomWrite: true, useMipMap: true, autoGenerateMips: false,
+                                                                          name: "DownsamplesShadowAtlas");
 
                 // We need to pass the following data to the shader:
                 // real  lightLeakBias = params.x;
@@ -1136,11 +1139,11 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 lightData.shadowMaskSelector.x = -1.0f;
                 lightData.nonLightmappedOnly = 0;
             }
-            
+
             lightData.contactShadowIndex = -1;
 
             m_lightList.lights.Add(lightData);
-            
+
             // Check if the current light is dominant and store it's index to change it's property later,
             // as we can't know which one will be dominant before checking all the lights
             GetDominantLightWithShadows(additionalshadowData, light, m_lightList.lights.Count -1);
@@ -2453,7 +2456,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 cmd.SetGlobalTexture(HDShaderIDs._DeferredShadowTexture, RuntimeUtilities.whiteTexture);
                 return;
             }
-            
+
             using (new ProfilingSample(cmd, "Deferred Directional Shadow", CustomSamplerId.TPDeferredDirectionalShadow.GetSampler()))
             {
                 Vector4         lightDirection = Vector4.zero;
@@ -2475,7 +2478,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 }
                 else
                     kernel = s_deferredDirectionalShadowKernel;
-                
+
                 // We use the .w component of the direction/position vectors to choose in the shader the
                 // light direction of the contact shadows (direction light direction or (pixel position - light position))
                 if (m_CurrentSunLight != null)

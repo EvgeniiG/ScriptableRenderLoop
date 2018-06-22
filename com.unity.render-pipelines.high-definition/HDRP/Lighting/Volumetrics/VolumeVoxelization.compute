@@ -315,12 +315,15 @@ void VolumeVoxelization(uint2 groupId       : SV_GroupID,
         tileCoord = groupOffset * VBUFFER_TILE_SIZE / TILE_SIZE_CLUSTERED;
     }
 
-    UNITY_BRANCH
-    if (voxelCoord.x >= (uint)_VBufferResolution.x ||
-        voxelCoord.y >= (uint)_VBufferResolution.y)
-    {
-        return;
-    }
+    // Note: reading and writing outside the buffer is well-defined
+    // as a NO-OP for all graphics APIs, so we can skip this test.
+    //
+    // UNITY_BRANCH
+    // if (voxelCoord.x >= (uint)_VBufferResolution.x ||
+    //     voxelCoord.y >= (uint)_VBufferResolution.y)
+    // {
+    //     return;
+    // }
 
     // Reminder: our voxel is a skewed pyramid frustum with square front and back faces.
 

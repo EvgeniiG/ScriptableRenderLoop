@@ -141,7 +141,7 @@ void DEFERRED_DIRECTIONAL(uint2 groupThreadId : SV_GroupThreadID, uint2 groupId 
     float3 normalWS = normalData.normalWS;
 
     ShadowContext shadowContext = InitShadowContext();
-    float shadow = GetDirectionalShadowAttenuation(shadowContext, posInput.positionWS, normalWS, _DirectionalShadowIndex, _DirectionalLightDirection.xyz);
+    float shadow = GetDirectionalShadowAttenuation(shadowContext, posInput.positionWS, normalWS, _DirectionalShadowIndex, 0, _DirectionalLightDirection.xyz);
 
 #ifdef ENABLE_CONTACT_SHADOWS
     contactShadow = ComputeContactShadow(posInput, direction);

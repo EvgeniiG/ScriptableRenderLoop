@@ -2,6 +2,40 @@
 // To use deferred directional shadow with cascaded shadow map,
 // it is required to define USE_DEFERRED_DIRECTIONAL_SHADOWS before including this files
 
+// A special case of an ellipsoid with two minor axes of the same length.
+struct BoundingSpheroid
+{
+    float3 positionWS;
+    float3 majorAxisDir;
+    float  majorAxisLen;
+    float  minorAxisLen;
+};
+
+// 'texelDensity' is the size of the of a texel in meters on the light's shadow projection plane
+// at a unit distance. Note that we cannot handle the case of non-square texels using the current
+// simplified code. Note that for a cubemap, you should pass the direction of the face.
+float ComputeShadowLoD(BoundingSpheroid bs, float3 lightPosWS, float3 lightDirWS, float texelDensity, bool perspProj)
+{
+    // We select between the major and the minor axes of the spheroid using
+    // the angle between the major axis and the light direction.
+    // We use the major axis if they are orthogonal, and the minor axis if they are parallel.
+    // For now, we use the cosine rather than the angle itself to save some ALU.
+    float cosTheta = abs(dot(bs.majorAxisDir, lightDirWS));
+    float lenWS    = lerp(bs.majorAxisLen, bs.minorAxisLen, cosTheta);
+
+    if (perspProj)
+    {
+        // After selecting the axis, we need to perform perspective projection onto the (Z = 1) plane.
+        float3 centerL  = lightPosWS - bs.positionWS;
+        float  projDist = abs(dot(centerL, lightDirWS));
+
+        lenWS *= rcp(projDist);
+    }
+
+    // Convert the length from meters to texels, and compute the LoD.
+    return log2(texelDensity * lenWS);
+}
+
 //-----------------------------------------------------------------------------
 // Directional Light evaluation helper
 //-----------------------------------------------------------------------------
@@ -29,7 +63,7 @@ float3 EvaluateCookie_Directional(LightLoopContext lightLoopContext, Directional
 // Note: When doing transmission we always have only one shadow sample to do: Either front or back. We use NdotL to know on which side we are
 void EvaluateLight_Directional(LightLoopContext lightLoopContext, PositionInputs posInput,
                                DirectionalLightData lightData, BakeLightingData bakeLightingData,
-                               float3 N, float3 L,
+                               float lod, float3 N, float3 L,
                                out float3 color, out float attenuation)
 {
     float3 positionWS = posInput.positionWS;
@@ -59,7 +93,7 @@ void EvaluateLight_Directional(LightLoopContext lightLoopContext, PositionInputs
 #ifdef USE_DEFERRED_DIRECTIONAL_SHADOWS
         shadow = LOAD_TEXTURE2D(_DeferredShadowTexture, posInput.positionSS).x;
 #else
-        shadow = GetDirectionalShadowAttenuation(lightLoopContext.shadowContext, positionWS, N, lightData.shadowIndex, L, posInput.positionSS);
+        shadow = GetDirectionalShadowAttenuation(lightLoopContext.shadowContext, positionWS, N, lightData.shadowIndex, lod, L, posInput.positionSS);
 #endif
 
 #ifdef SHADOWS_SHADOWMASK
@@ -201,7 +235,7 @@ void EvaluateLight_Punctual(LightLoopContext lightLoopContext, PositionInputs po
     {
         // TODO: make projector lights cast shadows.
         // Note:the case of NdotL < 0 can appear with isThinModeTransmission, in this case we need to flip the shadow bias
-        shadow = GetPunctualShadowAttenuation(lightLoopContext.shadowContext, positionWS, N, lightData.shadowIndex, L, distances.x, posInput.positionSS);
+        shadow = GetPunctualShadowAttenuation(lightLoopContext.shadowContext, positionWS, N, lightData.shadowIndex, 0, L, distances.x, posInput.positionSS);
 
 #ifdef SHADOWS_SHADOWMASK
         // Note: Legacy Unity have two shadow mask mode. ShadowMask (ShadowMask contain static objects shadow and ShadowMap contain only dynamic objects shadow, final result is the minimun of both value)

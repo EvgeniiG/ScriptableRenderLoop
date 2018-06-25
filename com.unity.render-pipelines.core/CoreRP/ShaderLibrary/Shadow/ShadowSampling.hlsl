@@ -266,7 +266,7 @@ real SampleShadow_PCF_Tent_7x7(ShadowContext shadowContext, inout uint payloadOf
 //
 //                  9 tap adaptive PCF sampling
 //
-real SampleShadow_PCF_9tap_Adaptive( ShadowContext shadowContext, inout uint payloadOffset, real4 texelSizeRcp, real3 tcs, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_PCF_9tap_Adaptive( ShadowContext shadowContext, inout uint payloadOffset, real4 texelSizeRcp, real4 tcs, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -311,7 +311,7 @@ real SampleShadow_PCF_9tap_Adaptive( ShadowContext shadowContext, inout uint pay
     return flSum;
 }
 
-real SampleShadow_PCF_9tap_Adaptive(ShadowContext shadowContext, inout uint payloadOffset, real4 texelSizeRcp, real3 tcs, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
+real SampleShadow_PCF_9tap_Adaptive(ShadowContext shadowContext, inout uint payloadOffset, real4 texelSizeRcp, real4 tcs, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -361,7 +361,7 @@ real SampleShadow_PCF_9tap_Adaptive(ShadowContext shadowContext, inout uint payl
 //
 //                  1 tap VSM sampling
 //
-real SampleShadow_VSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_VSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, float slice, uint texIdx, uint sampIdx )
 {
 #if UNITY_REVERSED_Z
     real  depth      = 1.0 - tcs.z;
@@ -373,12 +373,14 @@ real SampleShadow_VSM_1tap( ShadowContext shadowContext, inout uint payloadOffse
     real  varianceBias  = params.y;
     payloadOffset++;
 
-    real2 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice ).xy;
+    real lod = tcs.w;
+
+    real2 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice, lod ).xy;
 
     return ShadowMoments_ChebyshevsInequality( moments, depth, varianceBias, lightLeakBias );
 }
 
-real SampleShadow_VSM_1tap(ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, Texture2DArray tex, SamplerState samp )
+real SampleShadow_VSM_1tap(ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, float slice, Texture2DArray tex, SamplerState samp )
 {
 #if UNITY_REVERSED_Z
     real  depth      = 1.0 - tcs.z;
@@ -390,7 +392,9 @@ real SampleShadow_VSM_1tap(ShadowContext shadowContext, inout uint payloadOffset
     real  varianceBias  = params.y;
     payloadOffset++;
 
-    real2 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, 0.0 ).xy;
+    real lod = tcs.w;
+
+    real2 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, lod ).xy;
 
     return ShadowMoments_ChebyshevsInequality( moments, depth, varianceBias, lightLeakBias );
 }
@@ -424,7 +428,7 @@ real SampleShadow_EVSM_1tap_Impl( real depth, real4 moments, real4 params, bool 
     }
 }
 
-real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, uint texIdx, uint sampIdx, bool fourMoments )
+real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, float slice, uint texIdx, uint sampIdx, bool fourMoments )
 {
 
 #ifdef SHADOW_EVSM_USE_GLOBAL_PARAMS
@@ -434,14 +438,16 @@ real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffs
 #endif
     payloadOffset++;
 
+    real lod = tcs.w;
+
     // TODO: anisotropic filtering using coordinate gradients.
-    real4 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice );
+    real4 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice, lod );
     real  depth   = tcs.z;
 
     return SampleShadow_EVSM_1tap_Impl( depth, moments, params, fourMoments );
 }
 
-real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, Texture2DArray tex, SamplerState samp, bool fourMoments )
+real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, float slice, Texture2DArray tex, SamplerState samp, bool fourMoments )
 {
 #ifdef SHADOW_EVSM_USE_GLOBAL_PARAMS
     real4 params = _EvsmParams;
@@ -450,8 +456,10 @@ real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffs
 #endif
     payloadOffset++;
 
+    real lod = tcs.w;
+
     // TODO: anisotropic filtering using coordinate gradients.
-    real4 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, 0.0 );
+    real4 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, lod );
     real  depth   = tcs.z;
 
     return SampleShadow_EVSM_1tap_Impl( depth, moments, params, fourMoments );
@@ -460,7 +468,7 @@ real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffs
 //
 //                  1 tap MSM sampling
 //
-real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, uint texIdx, uint sampIdx, bool useHamburger )
+real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, float slice, uint texIdx, uint sampIdx, bool useHamburger )
 {
     real4 params        = asfloat( shadowContext.payloads[payloadOffset] );
     real  lightLeakBias = params.x;
@@ -474,7 +482,9 @@ real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffse
 #endif
     payloadOffset++;
 
-    real4 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice );
+    real lod = tcs.w;
+
+    real4 moments = SampleShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xy, slice, lod );
     if( bpp16 != 0.0 )
         moments = ShadowMoments_Decode16MSM( moments );
 
@@ -488,7 +498,7 @@ real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffse
         return (z[1] < 0.0 || z[2] > 1.0) ? ShadowMoments_SolveDelta4MSM( z, b, lightLeakBias ) : ShadowMoments_SolveDelta3MSM( z, b.xy, lightLeakBias );
 }
 
-real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, float slice, Texture2DArray tex, SamplerState samp, bool useHamburger )
+real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, float slice, Texture2DArray tex, SamplerState samp, bool useHamburger )
 {
     real4 params        = asfloat( shadowContext.payloads[payloadOffset] );
     real  lightLeakBias = params.x;
@@ -502,7 +512,9 @@ real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffse
 #endif
     payloadOffset++;
 
-    real4 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, 0.0 );
+    real lod = tcs.w;
+
+    real4 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, lod );
     if( bpp16 != 0.0 )
         moments = ShadowMoments_Decode16MSM( moments );
 
@@ -518,7 +530,7 @@ real SampleShadow_MSM_1tap( ShadowContext shadowContext, inout uint payloadOffse
 
 #include "PCSS.hlsl"
 
-real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, real4 scaleOffset, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, real4 scaleOffset, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
 {
     real2 params           = asfloat(shadowContext.payloads[payloadOffset].xy);
     real shadowSoftnesss   = params.x;
@@ -542,7 +554,7 @@ real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, r
     return PCSS(tcs, filterSize, scaleOffset, slice, sampleBias, sampleJitter, shadowContext, texIdx, sampIdx, sampleCount);
 }
 
-real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, real3 tcs, real4 scaleOffset, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp, SamplerState samp )
+real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, real4 scaleOffset, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp, SamplerState samp )
 {
     real2 params           = asfloat(shadowContext.payloads[payloadOffset].xy);
     real shadowSoftnesss   = params.x;
@@ -568,7 +580,7 @@ real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, r
 
 //-----------------------------------------------------------------------------------------------------
 // helper function to dispatch a specific shadow algorithm
-real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shadowData, inout uint payloadOffset, real3 posTC, real2 sampleBias, uint algorithm, uint texIdx, uint sampIdx )
+real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shadowData, inout uint payloadOffset, real4 posTC, real2 sampleBias, uint algorithm, uint texIdx, uint sampIdx )
 {
     UNITY_BRANCH
     switch( algorithm )
@@ -588,7 +600,7 @@ real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shado
     }
 }
 
-real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shadowData, inout uint payloadOffset, real3 posTC, real2 sampleBias, uint algorithm, Texture2DArray tex, SamplerComparisonState compSamp )
+real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shadowData, inout uint payloadOffset, real4 posTC, real2 sampleBias, uint algorithm, Texture2DArray tex, SamplerComparisonState compSamp )
 {
     UNITY_BRANCH
     switch( algorithm )
@@ -604,7 +616,7 @@ real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shado
     }
 }
 
-real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shadowData, inout uint payloadOffset, real3 posTC, real2 sampleBias, uint algorithm, Texture2DArray tex, SamplerState samp )
+real SampleShadow_SelectAlgorithm( ShadowContext shadowContext, ShadowData shadowData, inout uint payloadOffset, real4 posTC, real2 sampleBias, uint algorithm, Texture2DArray tex, SamplerState samp )
 {
     UNITY_BRANCH
     switch( algorithm )

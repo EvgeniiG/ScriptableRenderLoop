@@ -37,7 +37,7 @@ void ApplyDebug(LightLoopContext lightLoopContext, float3 positionWS, inout floa
         if (_DirectionalLightCount > 0)
         {
             int shadowIdx = _DirectionalLightDatas[0].shadowIndex;
-            float shadow = GetDirectionalShadowAttenuation(lightLoopContext.shadowContext, positionWS, float3(0.0, 1.0, 0.0 ), shadowIdx, -_DirectionalLightDatas[0].forward, float2(0.0, 0.0));
+            float shadow = GetDirectionalShadowAttenuation(lightLoopContext.shadowContext, positionWS, float3(0.0, 1.0, 0.0 ), shadowIdx, 0, -_DirectionalLightDatas[0].forward, float2(0.0, 0.0));
             uint  payloadOffset;
             real  alpha;
             int cascadeCount;

@@ -97,10 +97,10 @@ float4 SampleVBuffer(TEXTURE3D_ARGS(VBuffer, clampSampler),
         {
             float2 xy = uv * VBufferResolution.xy;
             float2 ic = floor(xy);
-            float2 fc = frac(xy);
+            float2 fc = 1 - frac(xy); // Inverse-translate the filter centered around 0.5
 
             float2 weights[2], offsets[2];
-            BiquadraticFilter(1 - fc, weights, offsets); // Inverse-translate the filter centered around 0.5
+            BiquadraticFilter(fc, weights, offsets);
 
             // Apply the viewport scale right at the end.
             // TODO: precompute (VBufferResolution.zw * VBufferUvScale).

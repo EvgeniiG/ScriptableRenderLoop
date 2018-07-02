@@ -99,7 +99,7 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
     // We recommend using a higher quality filter on a high-end PC.
 
     // We assume that the data is laid out in the Morton order. We then read it linearly.
-    const uint2  groupStart  = groupId * (GROUP_SIZE_1D * ITER_COUNT_1D);
+    const uint2  groupStart  = groupId * (GROUP_SIZE_1D/* * ITER_COUNT_1D*/);
     const float2 threadCoord = DecodeMorton2D(groupThreadId & (GROUP_SIZE_2D - 1));
 
     float depth = LOAD_TEXTURE2D_ARRAY(_Source, groupStart + threadCoord, 0).r;

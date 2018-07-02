@@ -2373,7 +2373,7 @@ DirectLighting EvaluateBSDF_Punctual(LightLoopContext lightLoopContext,
     float3 color;
     float attenuation;
 
-    EvaluateLight_Punctual(lightLoopContext, posInput, lightData, bakeLightingData, shadowBiasNormal, L,
+    EvaluateLight_Punctual(lightLoopContext, posInput, lightData, bakeLightingData, 0, shadowBiasNormal, L,
                            lightToSample, distances, color, attenuation);
 
 

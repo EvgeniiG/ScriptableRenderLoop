@@ -10,11 +10,7 @@ float ShadowMoments_ChebyshevsInequality( float2 moments, float depth, float min
 {
     float mean = moments.x;
 
-#if UNITY_REVERSED_Z
-    depth = min(depth, mean);
-#else
     depth = max(depth, mean);
-#endif
 
     // variance sig^2 = E(x^2) - E(x)^2
     float variance = max( moments.y - mean * mean, minVariance );
@@ -46,6 +42,7 @@ float2 ShadowMoments_WarpDepth( float depth, float2 exponents )
     float pos =  exp2( exponents.x * depth );
     float neg = -exp2(-exponents.y * depth );
 #endif
+
     return float2( pos, neg );
 }
 

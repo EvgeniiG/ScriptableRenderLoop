@@ -408,6 +408,10 @@ real SampleShadow_EVSM_1tap_Impl( real depth, real4 moments, real4 params, bool 
     real  varianceBias  = params.y;
     real2 evsmExponents = params.zw;
 
+#if UNITY_REVERSED_Z
+    depth = 1.0 - depth;
+#endif
+
     real2 warpedDepth = ShadowMoments_WarpDepth( depth, evsmExponents );
 
     // Derivate of warping at depth
@@ -456,11 +460,38 @@ real SampleShadow_EVSM_1tap( ShadowContext shadowContext, inout uint payloadOffs
 #endif
     payloadOffset++;
 
-    real lod = tcs.w;
+    real depth = tcs.z;
+    real lod   = tcs.w;
 
+#if 0
+    int sizeMip0    = 4096;
+    int minMip      = (int)lod;
+    int sizeMinMip  = sizeMip0 >> (int)lod;
+
+    float  rs = rcp(sizeMinMip);
+    float2 xy = tcs.xy * sizeMinMip;
+    float2 ic = round(xy) + 0.5; // Center of the texel of the middle-right segment
+    float2 fc = ic - xy;         // Inverse-translate the the filter around 0.5 with a wrap
+
+    float2 weights[4];
+
+    weights[0] = BSpline3Leftmost(fc);
+    weights[1] = BSpline3MiddleLeft(fc);
+    weights[2] = BSpline3MiddleRight(fc);
+    weights[3] = 1 - weights[0] - weights[1] - weights[2];
+
+    real4 moments = 0;
+
+    for (int y = -2; y < 2; y++)
+    for (int x = -2; x < 2; x++)
+    {
+        moments += SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, (ic + float2(x, y)) * rs, slice, lod ) * weights[x + 2].x * weights[y + 2].y;
+    }
+
+#else
     // TODO: anisotropic filtering using coordinate gradients.
     real4 moments = SAMPLE_TEXTURE2D_ARRAY_LOD( tex, samp, tcs.xy, slice, lod );
-    real  depth   = tcs.z;
+#endif
 
     return SampleShadow_EVSM_1tap_Impl( depth, moments, params, fourMoments );
 }

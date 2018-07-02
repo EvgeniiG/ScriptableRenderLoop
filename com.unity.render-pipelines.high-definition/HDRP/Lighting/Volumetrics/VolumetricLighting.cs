@@ -695,6 +695,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 // TODO: set the constant buffer data only once.
                 cmd.SetComputeVectorParam( m_VolumetricLightingCS,         HDShaderIDs._EvsmParams,              evsmData.parameters);
                 cmd.SetComputeTextureParam(m_VolumetricLightingCS, kernel, HDShaderIDs._Shadowmap_EVSM,          evsmData.downsampledShadowAtlas.rt);
+                //cmd.SetComputeTextureParam(m_VolumetricLightingCS, kernel, HDShaderIDs._ShadowmapExp_PCF,          evsmData.downsampledShadowAtlas.rt); // Overwrite the shadow framework's binding
                 cmd.SetComputeMatrixParam( m_VolumetricLightingCS,         HDShaderIDs._VBufferCoordToViewDirWS, transform);
                 cmd.SetComputeVectorParam( m_VolumetricLightingCS,         HDShaderIDs._VBufferSampleOffset,     offset);
                 cmd.SetComputeFloatParam(  m_VolumetricLightingCS,         HDShaderIDs._CornetteShanksConstant,  CornetteShanksPhasePartConstant(fog.anisotropy));

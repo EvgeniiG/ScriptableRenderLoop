@@ -1195,7 +1195,7 @@ DirectLighting EvaluateBSDF_Punctual(LightLoopContext lightLoopContext,
 
     float3 color;
     float attenuation;
-    EvaluateLight_Punctual(lightLoopContext, posInput, lightData, bakeLightingData, N, L,
+    EvaluateLight_Punctual(lightLoopContext, posInput, lightData, bakeLightingData, 0, N, L,
                            lightToSample, distances, color, attenuation);
 
     float intensity = max(0, attenuation * NdotL); // Warning: attenuation can be greater than 1 due to the inverse square attenuation (when position is close to light)

@@ -640,8 +640,8 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 m_GlobalEvsmData.sourceShadowAtlasWidth  = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasWidth;
                 m_GlobalEvsmData.sourceShadowAtlasHeight = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasHeight;
 
-                int w = m_GlobalEvsmData.sourceShadowAtlasWidth  / 4;
-                int h = m_GlobalEvsmData.sourceShadowAtlasHeight / 4;
+                int w = m_GlobalEvsmData.sourceShadowAtlasWidth;
+                int h = m_GlobalEvsmData.sourceShadowAtlasHeight;
 
                 m_GlobalEvsmData.downsampledShadowAtlasWidth  = w;
                 m_GlobalEvsmData.downsampledShadowAtlasHeight = h;
@@ -661,7 +661,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 // m_DefEVSM_VarianceBias    = new ValRange( "Variance bias"     , 0.0f, 0.1f    ,  1.0f  , 0.01f  );
                 // m_DefEVSM_PosExponent_32  = new ValRange( "Positive Exponent" , 1.0f, 1.0f    , 42.0f  , 1.0f   );
                 // m_DefEVSM_NegExponent_32  = new ValRange( "Negative Exponent" , 1.0f, 1.0f    , 42.0f  , 1.0f   );
-                m_GlobalEvsmData.parameters = new Vector4(0.0f, 0.0001f, 40.0f, 40.0f);
+                m_GlobalEvsmData.parameters = new Vector4(0.0f, 0.0001f, 20.0f, 20.0f);
             }
         }
 

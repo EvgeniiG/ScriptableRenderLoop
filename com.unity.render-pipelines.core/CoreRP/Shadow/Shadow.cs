@@ -143,7 +143,7 @@ namespace UnityEngine.Experimental.Rendering
 
         public override void CreateShadowmap()
         {
-            m_Shadowmap = new RenderTexture((int)m_Width, (int)m_Height, (int)m_ShadowmapBits, m_ShadowmapFormat, RenderTextureReadWrite.Linear);
+            m_Shadowmap = new RenderTexture((int)m_Width, (int)m_Height, (int)m_ShadowmapBits, m_ShadowmapFormat);
             CreateShadowmap(m_Shadowmap);
             m_Shadowmap.Create();
 #if false && UNITY_PS4 && !UNITY_EDITOR
@@ -157,6 +157,7 @@ namespace UnityEngine.Experimental.Rendering
             m_Shadowmap.hideFlags   = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
             m_Shadowmap.dimension   = TextureDimension.Tex2DArray;
             m_Shadowmap.volumeDepth = (int)m_Slices;
+            m_Shadowmap.enableRandomWrite = true;
             m_Shadowmap.name = CoreUtils.GetRenderTargetAutoName(shadowmap.width, shadowmap.height, 1, shadowmap.format, "Shadow", mips: shadowmap.useMipMap);
 
             m_ShadowmapId = new RenderTargetIdentifier(m_Shadowmap);
@@ -195,7 +196,7 @@ namespace UnityEngine.Experimental.Rendering
                 new ShadowVariant[] { ShadowVariant.V0, ShadowVariant.V1, ShadowVariant.V2, ShadowVariant.V3, ShadowVariant.V4 },
                 new string[] {"1 tap", "9 tap adaptive", "tent 3x3 (4 taps)", "tent 5x5 (9 taps)", "tent 7x7 (16 taps)" },
                 new ShadowRegistry.VariantDelegate[] { del, del, del, del, del });
-            
+
             registry.Register(type, precision, ShadowAlgorithm.PCSS, "Percentage Closer Soft Shadows (PCSS)",
                 new ShadowVariant[] { ShadowVariant.V0 },
                 new string[] { "poisson 64" },
@@ -212,7 +213,7 @@ namespace UnityEngine.Experimental.Rendering
                  variant != ShadowVariant.V3 &&
                  variant != ShadowVariant.V4))
                 return true;
-            
+
             switch (algorithm)
             {
                 case  ShadowAlgorithm.PCF:

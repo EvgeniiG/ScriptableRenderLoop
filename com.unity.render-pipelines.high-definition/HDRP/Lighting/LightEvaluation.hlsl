@@ -19,13 +19,13 @@ float ComputeShadowLoD(BoundingSpheroid bs, float3 lightPosWS, float3 lightDirWS
     // We select between the major and the minor axes of the spheroid using
     // the angle between the major axis and the light direction.
     // We use the major axis if they are orthogonal, and the minor axis if they are parallel.
-    // For now, we use the cosine rather than the angle itself to save some ALU.
     float cosTheta = abs(dot(bs.majorAxisDir, lightDirWS));
-    float lenWS    = lerp(bs.majorAxisLen, bs.minorAxisLen, cosTheta);
+    float sinTheta = sqrt(saturate(1 - cosTheta * cosTheta));
+    float lenWS    = bs.minorAxisLen * cosTheta + bs.majorAxisLen * sinTheta;
 
     if (perspProj)
     {
-        // After selecting the axis, we need to perform perspective projection onto the (Z = 1) plane.
+        // After selecting the axis, we need to perform oblique perspective projection onto the (Z = 1) plane.
         float3 centerL  = lightPosWS - bs.positionWS;
         float  projDist = abs(dot(centerL, lightDirWS));
 
@@ -198,7 +198,7 @@ float4 EvaluateCookie_Punctual(LightLoopContext lightLoopContext, LightData ligh
 // Note: When doing transmission we always have only one shadow sample to do: Either front or back. We use NdotL to know on which side we are
 void EvaluateLight_Punctual(LightLoopContext lightLoopContext, PositionInputs posInput,
                             LightData lightData, BakeLightingData bakeLightingData,
-                            float3 N, float3 L, float3 lightToSample, float4 distances,
+                            float lod, float3 N, float3 L, float3 lightToSample, float4 distances,
                             out float3 color, out float attenuation)
 {
     float3 positionWS    = posInput.positionWS;
@@ -233,7 +233,7 @@ void EvaluateLight_Punctual(LightLoopContext lightLoopContext, PositionInputs po
     {
         // TODO: make projector lights cast shadows.
         // Note:the case of NdotL < 0 can appear with isThinModeTransmission, in this case we need to flip the shadow bias
-        shadow = GetPunctualShadowAttenuation(lightLoopContext.shadowContext, positionWS, N, lightData.shadowIndex, 0, L, distances.x, posInput.positionSS);
+        shadow = GetPunctualShadowAttenuation(lightLoopContext.shadowContext, positionWS, N, lightData.shadowIndex, lod, L, distances.x, posInput.positionSS);
 
 #ifdef SHADOWS_SHADOWMASK
         // Note: Legacy Unity have two shadow mask mode. ShadowMask (ShadowMask contain static objects shadow and ShadowMap contain only dynamic objects shadow, final result is the minimun of both value)

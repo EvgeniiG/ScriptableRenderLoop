@@ -635,7 +635,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
 
             InitShadowSystem(hdAsset, shadowSettings);
 
-            if (hdAsset.renderPipelineSettings.supportVolumetric)
+            if (hdAsset.renderPipelineSettings.supportVolumetrics)
             {
                 m_GlobalEvsmData.sourceShadowAtlasWidth  = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasWidth;
                 m_GlobalEvsmData.sourceShadowAtlasHeight = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasHeight;

@@ -17,6 +17,7 @@ float ShadowMoments_ChebyshevsInequality( float2 moments, float depth, float min
 
     // probabilistic upper bound
     float mD = depth - mean;
+    // TODO: use SafeDiv() and do not clamp variance?
     float p = variance / (variance + mD * mD);
 
     // TODO: this code is inefficient. It's better to use precomputed factors:

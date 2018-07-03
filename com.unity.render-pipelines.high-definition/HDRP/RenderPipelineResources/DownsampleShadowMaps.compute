@@ -79,8 +79,8 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
     // We recommend using a higher quality filter on a high-end PC.
 
     // If texels are laid out in the Morton order, this code will read them linearly.
-    const uint2  groupStart  = groupId * (GROUP_SIZE_1D * ITEM_COUNT_1D);
-    const float2 threadCoord = DecodeMorton2D(groupThreadId & (GROUP_SIZE_2D - 1));
+    const uint2 groupStart  = groupId * (GROUP_SIZE_1D * ITEM_COUNT_1D);
+    const uint2 threadCoord = DecodeMorton2D(groupThreadId & (GROUP_SIZE_2D - 1));
 
     // Running sum after all iterations.
     float2 warpedMomentsTotal = 0;

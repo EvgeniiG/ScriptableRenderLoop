@@ -640,8 +640,9 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 m_GlobalEvsmData.sourceShadowAtlasWidth  = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasWidth;
                 m_GlobalEvsmData.sourceShadowAtlasHeight = hdAsset.renderPipelineSettings.shadowInitParams.shadowAtlasHeight;
 
-                int w = m_GlobalEvsmData.sourceShadowAtlasWidth;
-                int h = m_GlobalEvsmData.sourceShadowAtlasHeight;
+                // We downsample 4x.
+                int w = m_GlobalEvsmData.sourceShadowAtlasWidth  >> 2;
+                int h = m_GlobalEvsmData.sourceShadowAtlasHeight >> 2;
 
                 m_GlobalEvsmData.downsampledShadowAtlasWidth  = w;
                 m_GlobalEvsmData.downsampledShadowAtlasHeight = h;

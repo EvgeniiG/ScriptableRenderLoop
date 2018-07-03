@@ -4,28 +4,22 @@
 
 #define _Source       _ShadowmapExp_PCF // The name is hardcoded by the shadow system
 #define USE_GATHER    1
-#define USE_4_MOMENTS 0
 #define GROUP_SIZE_1D 8
 #define GROUP_SIZE_2D (GROUP_SIZE_1D * GROUP_SIZE_1D)
 #define ITER_COUNT_1D 2
+#define ITEM_COUNT_1D (ITER_COUNT_1D * 2)
 #define ITER_COUNT_2D (ITER_COUNT_1D * ITER_COUNT_1D)
 
-#define SUPPORT_UAV_MIPS 0 // Waiting for a C++ PR...
-
-#if USE_4_MOMENTS
-    #define DST_TYPE float4
-#else
-    #define DST_TYPE float2
-#endif // USE_4_MOMENTS
+#define SUPPORT_UAV_MIPS 1 // Waiting for a C++ PR...
 
 // The shadow system expects the atlas to be an array texture of size 1.
 TEXTURE2D_ARRAY(_Source);
 
 // We process 4 MIP levels per pass to avoid reading the same data multiple times.
-RW_TEXTURE2D_ARRAY(DST_TYPE, _DestinationMip0);
-RW_TEXTURE2D_ARRAY(DST_TYPE, _DestinationMip1);
-RW_TEXTURE2D_ARRAY(DST_TYPE, _DestinationMip2);
-RW_TEXTURE2D_ARRAY(DST_TYPE, _DestinationMip3);
+RW_TEXTURE2D_ARRAY(float2, _DestinationMip0);
+RW_TEXTURE2D_ARRAY(float2, _DestinationMip1);
+RW_TEXTURE2D_ARRAY(float2, _DestinationMip2);
+RW_TEXTURE2D_ARRAY(float2, _DestinationMip3);
 
 #if USE_GATHER
     SAMPLER(s_point_clamp_sampler);
@@ -36,13 +30,10 @@ RW_TEXTURE2D_ARRAY(DST_TYPE, _DestinationMip3);
 float4 _PassParams; // {1 / SrcW, 1 / SrcH, ExpPos, ExpNeg}
 
 #ifndef INTRINSIC_WAVESWIZZLE
-    groupshared float2 groupSharedData0[GROUP_SIZE_2D >> 1];
-#if USE_4_MOMENTS // Avoid bank conflicts using partial SoA layout
-    groupshared float2 groupSharedData1[GROUP_SIZE_2D >> 1];
-#endif // USE_4_MOMENTS
-#endif // INTRINSIC_WAVESWIZZLE
+    groupshared float2 groupSharedData[GROUP_SIZE_2D >> 1];
+#endif
 
-float4 ComputePartialSum(float4 partialSum, uint groupThreadId,
+float2 ComputePartialSum(float2 partialSum, uint groupThreadId,
                          uint iterBegin, uint iterEnd)
 {
     for (uint k = iterBegin; k < iterEnd; k++)
@@ -55,31 +46,21 @@ float4 ComputePartialSum(float4 partialSum, uint groupThreadId,
         // With (orMask = 0),   srcLane = (dstLane ^ xorMask).
         partialSum.x += WaveSwizzle(partialSum.x, 31, 0, 1 << k);
         partialSum.y += WaveSwizzle(partialSum.y, 31, 0, 1 << k);
-    #if USE_4_MOMENTS
-        partialSum.z += WaveSwizzle(partialSum.z, 31, 0, 1 << k);
-        partialSum.w += WaveSwizzle(partialSum.w, 31, 0, 1 << k);
-    #endif
-    #else  // INTRINSIC_WAVESWIZZLE
+    #else
         if ((groupThreadId & ((2 << k) - 1)) == (1 << k))
         {
-            groupSharedData0[groupThreadId >> (k + 1)] = partialSum.xy;
-        #if USE_4_MOMENTS
-            groupSharedData1[groupThreadId >> (k + 1)] = partialSum.zw;
-        #endif
+            groupSharedData[groupThreadId >> (k + 1)] = partialSum;
         }
 
         GroupMemoryBarrierWithGroupSync();
 
         if ((groupThreadId & ((2 << k) - 1)) == 0)
         {
-            partialSum.xy += groupSharedData0[groupThreadId >> (k + 1)];
-        #if USE_4_MOMENTS
-            partialSum.zw += groupSharedData1[groupThreadId >> (k + 1)];
-        #endif
+            partialSum.xy += groupSharedData[groupThreadId >> (k + 1)];
         }
 
         GroupMemoryBarrierWithGroupSync();
-    #endif // INTRINSIC_WAVESWIZZLE
+    #endif
     }
 
     return partialSum;
@@ -92,48 +73,36 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
                           uint  groupThreadId : SV_GroupThreadID)
 {
     // We downsample 4x on each side, s.t. a 4K x 4K atlas becomes a 1K x 1K texture.
-    // Therefore, each thread downsamples 16 texels to 1.
     // We then generate 3 extra MIP maps.
-    // We downsample using the box filter (which means we return the average depth).
-    // This is a performance/quality trade-off for console.
+    // Therefore, each thread downsamples 4x4 texels to 1 (ITEM_COUNT_1D = 4).
+    // We downsample using the box filter. This is a performance/quality trade-off for console.
     // We recommend using a higher quality filter on a high-end PC.
 
-    // We assume that the data is laid out in the Morton order. We then read it linearly.
-    const uint2  groupStart  = groupId * (GROUP_SIZE_1D/* * ITER_COUNT_1D*/);
+    // If texels are laid out in the Morton order, this code will read them linearly.
+    const uint2  groupStart  = groupId * (GROUP_SIZE_1D * ITEM_COUNT_1D);
     const float2 threadCoord = DecodeMorton2D(groupThreadId & (GROUP_SIZE_2D - 1));
 
-    float depth = LOAD_TEXTURE2D_ARRAY(_Source, groupStart + threadCoord, 0).r;
-    float d = 1 - depth;
-
-    float2 evsmExponents = _PassParams.zw;
-    float2 warpedDepth   = ShadowMoments_WarpDepth(d, evsmExponents);
-    float4 warpedMoments = 0;
-    warpedMoments.x +=    warpedDepth.x;
-    warpedMoments.y += Sq(warpedDepth.x);
-
-    _DestinationMip0[uint3(groupStart + threadCoord, 0)] = warpedMoments.xy;
-    /*
-
     // Running sum after all iterations.
-    float4 warpedMomentsTotal = 0;
+    float2 warpedMomentsTotal = 0;
 
-    // Use a semi-persistent theadgroup to avoid hitting the HW wave launch rate limit.
     for (uint j = 0; j < ITER_COUNT_1D; j++)
     {
         for (uint i = 0; i < ITER_COUNT_1D; i++)
         {
-            uint2 batchCoord = uint2(i, j);
-            uint2 batchStart = groupStart + batchCoord * GROUP_SIZE_1D;
-
-            // We process a quad of texels per iteration per thread.
             float4 depth;
 
+            // We process a quad of texels per iteration per thread.
+            // We subdivide (GROUP_SIZE_1D * ITEM_COUNT_1D) group into ITER_COUNT_1D parts.
+            uint2 batchStart = uint2(i, j) * (GROUP_SIZE_1D * ITER_COUNT_1D);
+            // We then multiply the thread coordinate by the size of the quad (2).
             // We don't bounds-check the coordinate. For sane atlas sizes, that's not necessary.
-            uint2 srcCoord = 2 * (batchStart + threadCoord);
+            uint2 srcCoord = groupStart + batchStart + 2 * threadCoord;
 
         #if USE_GATHER
+
             float2 rcpSrcRes = _PassParams.xy;
             float2 uv        = srcCoord * rcpSrcRes + rcpSrcRes;
+
             depth = GATHER_TEXTURE2D_ARRAY(_Source, s_point_clamp_sampler, uv, 0);
         #else
             depth.x = LOAD_TEXTURE2D_ARRAY(_Source, srcCoord + uint2(0, 0), 0).r;
@@ -142,21 +111,23 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
             depth.w = LOAD_TEXTURE2D_ARRAY(_Source, srcCoord + uint2(1, 1), 0).r;
         #endif
 
-            float4 warpedMoments = 0;
+            float2 warpedMoments = 0;
 
             for (uint k = 0; k < 4; k++)
             {
-                float d = 1 - depth[i];
-
+                // We only support EVSM2 (with the positive exponent).
                 float2 evsmExponents = _PassParams.zw;
-                float2 warpedDepth   = ShadowMoments_WarpDepth(d, evsmExponents);
 
-                warpedMoments.x +=    warpedDepth.x;
-                warpedMoments.y += Sq(warpedDepth.x);
-            #if USE_4_MOMENTS
-                warpedMoments.z +=    warpedDepth.y;
-                warpedMoments.w += Sq(warpedDepth.y);
+            #if UNITY_REVERSED_Z
+                // We reverse the depth here.
+                // TODO: we should come up with a better way of supporting reverse Z for EVSM.
+                float warpedDepth = ShadowMoments_WarpDepth(1 - depth[i], evsmExponents).x;
+            #else
+                float warpedDepth = ShadowMoments_WarpDepth(depth[i], evsmExponents).x;
             #endif
+
+                warpedMoments.x +=    warpedDepth;
+                warpedMoments.y += Sq(warpedDepth);
             }
 
             // Compute 16 partial sums as follows:
@@ -169,7 +140,7 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
 
             warpedMoments = ComputePartialSum(warpedMoments, groupThreadId, 0, 2);
 
-            // At this point, we have 16 partial sums of 16 texels each.
+            // At this point, we have 16 partial sums over 16 texels each.
             // We can normalize the weighted average and write it out.
             if ((groupThreadId & 3) == 0)
             {
@@ -178,17 +149,10 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
 
                 // TODO: do not store incomplete cache lines.
                 // Store to LDS or VGPR first, and then write out the results for the entire wave.
-            #if USE_4_MOMENTS
-                // Have to swizzle here, and unswizzle in SampleShadow_EVSM_1tap_Impl().
-                // Annoying, but that's the way it works ATM.
-                _DestinationMip0[dstCoord] = weight * warpedMoments.xzyw;
-            #else
-                _DestinationMip0[dstCoord] = weight * warpedMoments.xy;
-            #endif
+                _DestinationMip0[dstCoord] = weight * warpedMoments;
             }
 
-        #if SUPPORT_UAV_MIPS
-            // Fill 3x more MIPs by box filtering again... Exactly the same way.
+        #if SUPPORT_UAV_MIPS // Fill 3x more MIPs by box filtering again... Exactly the same way.
 
             warpedMoments = ComputePartialSum(warpedMoments, groupThreadId, 2, 4);
 
@@ -197,27 +161,19 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
                 float weight   = 1.0 / 64.0;
                 uint3 dstCoord = uint3(srcCoord >> 3, 0);
 
-            #if USE_4_MOMENTS
-                _DestinationMip1[dstCoord] = weight * warpedMoments.xzyw;
-            #else
-                _DestinationMip1[dstCoord] = weight * warpedMoments.xy;
-            #endif
+                _DestinationMip1[dstCoord] = weight * warpedMoments;
             }
 
             warpedMoments = ComputePartialSum(warpedMoments, groupThreadId, 4, 6);
 
             if ((groupThreadId & 63) == 0)
             {
-                float weight      = 1.0 /  256.0;
-                float weightTotal = weight / ITER_COUNT_2D;
-
+                float weight   = 1.0 /  256.0;
                 uint3 dstCoord = uint3(srcCoord >> 4, 0);
-            #if USE_4_MOMENTS
-                _DestinationMip2[dstCoord]  = weight * warpedMoments.xzyw;
-            #else
-                _DestinationMip2[dstCoord]  = weight * warpedMoments.xy;
-            #endif
 
+                _DestinationMip2[dstCoord]  = weight * warpedMoments;
+
+                float weightTotal   = weight / ITER_COUNT_2D;
                 warpedMomentsTotal += weightTotal * warpedMoments;
             }
         #endif // SUPPORT_UAV_MIPS
@@ -228,14 +184,9 @@ void DownsampleShadowMaps(uint2 groupId       : SV_GroupID,
     // Write out the last MIP.
     if ((groupThreadId & 63) == 0)
     {
-        // Only works for (ITER_COUNT_2D == 4).
-        uint3 dstCoord = uint3(groupStart >> 4, 0);
-    #if USE_4_MOMENTS
-        _DestinationMip3[dstCoord] = warpedMomentsTotal.xzyw;
-    #else
-        _DestinationMip3[dstCoord] = warpedMomentsTotal.xy;
-    #endif
+        uint3 dstCoord = uint3(groupStart >> 5, 0);
+
+        _DestinationMip3[dstCoord] = warpedMomentsTotal;
     }
 #endif // SUPPORT_UAV_MIPS
-*/
 }

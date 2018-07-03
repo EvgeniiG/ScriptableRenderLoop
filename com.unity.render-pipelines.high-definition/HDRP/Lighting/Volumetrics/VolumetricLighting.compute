@@ -42,7 +42,7 @@ CBUFFER_END
 #define SHADOW_USE_ONLY_VIEW_BASED_BIASING 1 // We don't use normal biasing as it is not available when doing volumetric
 #define SHADOW_USE_VIEW_BIAS_SCALING       0 // No biasing, please
 #define SUPPORT_PUNCTUAL_LIGHTS            0 // Punctual lights contribute to fog lighting
-#define USE_PREFILTERED_SHADOWS            0 // Uses a low-resolution EVSM shadow map
+#define USE_PREFILTERED_SHADOWS            1 // Uses a low-resolution EVSM shadow map
 
 #if USE_PREFILTERED_SHADOWS
     #define SHADOW_USE_PREFILTERED_SHADOWS

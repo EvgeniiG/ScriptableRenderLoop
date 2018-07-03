@@ -156,13 +156,12 @@ VoxelLighting EvaluateVoxelLighting(LightLoopContext context, uint featureFlags,
             float texelDensity = EvalShadow_CascadedDepth_GetTexelDensity(context.shadowContext, boundingSpheroid.positionWS, light.shadowIndex);
             float lod = ComputeShadowLoD(boundingSpheroid, 0, L, texelDensity, false);
 
-            // TODO
             const float lodBias = 0;
             const float maxLod  = 10;
 
             lod = min(lod + lodBias, maxLod);
 
-            lod = 0;
+            lod = 0; // TODO
 
             light.contactShadowIndex = -1;
 

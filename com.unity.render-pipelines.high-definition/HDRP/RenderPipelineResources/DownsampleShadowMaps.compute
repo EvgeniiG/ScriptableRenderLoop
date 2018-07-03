@@ -10,16 +10,18 @@
 #define ITEM_COUNT_1D (ITER_COUNT_1D * 2)
 #define ITER_COUNT_2D (ITER_COUNT_1D * ITER_COUNT_1D)
 
-#define SUPPORT_UAV_MIPS 1 // Waiting for a C++ PR...
+#define SUPPORT_UAV_MIPS 0 // Waiting for a C++ PR...
 
 // The shadow system expects the atlas to be an array texture of size 1.
 TEXTURE2D_ARRAY(_Source);
 
 // We process 4 MIP levels per pass to avoid reading the same data multiple times.
 RW_TEXTURE2D_ARRAY(float2, _DestinationMip0);
+#if SUPPORT_UAV_MIPS
 RW_TEXTURE2D_ARRAY(float2, _DestinationMip1);
 RW_TEXTURE2D_ARRAY(float2, _DestinationMip2);
 RW_TEXTURE2D_ARRAY(float2, _DestinationMip3);
+#endif
 
 #if USE_GATHER
     SAMPLER(s_point_clamp_sampler);

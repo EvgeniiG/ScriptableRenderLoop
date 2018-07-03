@@ -82,6 +82,7 @@ namespace UnityEditor.Experimental.Rendering
             EditorGUILayout.PropertyField(d.increaseSssSampleCount, _.GetContent("Increase SSS Sample Count|This allows for better SSS quality. Warning: high performance cost, do not enable on consoles."));
             EditorGUILayout.PropertyField(d.supportVolumetrics, _.GetContent("Support volumetrics|Enable memory and shader variant for volumetric."));
             EditorGUILayout.PropertyField(d.increaseResolutionOfVolumetrics, _.GetContent("Increase resolution of volumetrics|Increase the resolution of volumetric lighting buffers. Warning: high performance cost, do not enable on consoles."));
+            EditorGUILayout.PropertyField(d.usePcfForVolumetrics, _.GetContent("Use PCF for volumetrics|Using PCF results in higher resolution shadows which look softer/smoother when viewed up close (under magnification). PCF does not support MIP-mapping, so under shadows may alias in the distance (under minification). Performance is you use PCF."));
             EditorGUILayout.PropertyField(d.supportRuntimeDebugDisplay, _.GetContent("Support runtime debug display|Remove all debug display shader variant only in the player. Allow faster build."));
             EditorGUILayout.PropertyField(d.supportDitheringCrossFade, _.GetContent("Support dithering cross fade|Remove all dithering cross fade shader variant only in the player. Allow faster build."));
 

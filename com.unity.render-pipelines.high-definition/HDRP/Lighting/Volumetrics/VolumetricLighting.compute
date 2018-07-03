@@ -1,11 +1,20 @@
-#pragma kernel VolumetricLightingBruteforceMQ       VolumetricLighting=VolumetricLightingBruteforceMQ       VL_PRESET_MQ ENABLE_REPROJECTION=0 LIGHTLOOP_SINGLE_PASS
-#pragma kernel VolumetricLightingBruteforceReprojMQ VolumetricLighting=VolumetricLightingBruteforceReprojMQ VL_PRESET_MQ ENABLE_REPROJECTION=1 LIGHTLOOP_SINGLE_PASS
-#pragma kernel VolumetricLightingClusteredMQ        VolumetricLighting=VolumetricLightingClusteredMQ        VL_PRESET_MQ ENABLE_REPROJECTION=0 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
-#pragma kernel VolumetricLightingClusteredReprojMQ  VolumetricLighting=VolumetricLightingClusteredReprojMQ  VL_PRESET_MQ ENABLE_REPROJECTION=1 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
-#pragma kernel VolumetricLightingBruteforceHQ       VolumetricLighting=VolumetricLightingBruteforceHQ       VL_PRESET_HQ ENABLE_REPROJECTION=0 LIGHTLOOP_SINGLE_PASS
-#pragma kernel VolumetricLightingBruteforceReprojHQ VolumetricLighting=VolumetricLightingBruteforceReprojHQ VL_PRESET_HQ ENABLE_REPROJECTION=1 LIGHTLOOP_SINGLE_PASS
-#pragma kernel VolumetricLightingClusteredHQ        VolumetricLighting=VolumetricLightingClusteredHQ        VL_PRESET_HQ ENABLE_REPROJECTION=0 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
-#pragma kernel VolumetricLightingClusteredReprojHQ  VolumetricLighting=VolumetricLightingClusteredReprojHQ  VL_PRESET_HQ ENABLE_REPROJECTION=1 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingPcfMQ                 VolumetricLighting=VolumetricLightingPcfMQ                                         VL_PRESET_MQ ENABLE_REPROJECTION=0 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingPcfHQ                 VolumetricLighting=VolumetricLightingPcfHQ                                         VL_PRESET_HQ ENABLE_REPROJECTION=0 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingPcfReprojMQ           VolumetricLighting=VolumetricLightingPcfReprojMQ                                   VL_PRESET_MQ ENABLE_REPROJECTION=1 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingPcfReprojHQ           VolumetricLighting=VolumetricLightingPcfReprojHQ                                   VL_PRESET_HQ ENABLE_REPROJECTION=1 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingPcfClusteredMQ        VolumetricLighting=VolumetricLightingPcfClusteredMQ                                VL_PRESET_MQ ENABLE_REPROJECTION=0 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingPcfClusteredHQ        VolumetricLighting=VolumetricLightingPcfClusteredHQ                                VL_PRESET_HQ ENABLE_REPROJECTION=0 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingPcfClusteredReprojMQ  VolumetricLighting=VolumetricLightingPcfClusteredReprojMQ                          VL_PRESET_MQ ENABLE_REPROJECTION=1 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingPcfClusteredReprojHQ  VolumetricLighting=VolumetricLightingPcfClusteredReprojHQ                          VL_PRESET_HQ ENABLE_REPROJECTION=1 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+
+#pragma kernel VolumetricLightingEvsmMQ                VolumetricLighting=VolumetricLightingEvsmMQ                USE_PREFILTERED_SHADOWS VL_PRESET_MQ ENABLE_REPROJECTION=0 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingEvsmHQ                VolumetricLighting=VolumetricLightingEvsmHQ                USE_PREFILTERED_SHADOWS VL_PRESET_HQ ENABLE_REPROJECTION=0 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingEvsmReprojMQ          VolumetricLighting=VolumetricLightingEvsmReprojMQ          USE_PREFILTERED_SHADOWS VL_PRESET_MQ ENABLE_REPROJECTION=1 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingEvsmReprojHQ          VolumetricLighting=VolumetricLightingEvsmReprojHQ          USE_PREFILTERED_SHADOWS VL_PRESET_HQ ENABLE_REPROJECTION=1 LIGHTLOOP_SINGLE_PASS
+#pragma kernel VolumetricLightingEvsmClusteredMQ       VolumetricLighting=VolumetricLightingEvsmClusteredMQ       USE_PREFILTERED_SHADOWS VL_PRESET_MQ ENABLE_REPROJECTION=0 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingEvsmClusteredHQ       VolumetricLighting=VolumetricLightingEvsmClusteredHQ       USE_PREFILTERED_SHADOWS VL_PRESET_HQ ENABLE_REPROJECTION=0 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingEvsmClusteredReprojMQ VolumetricLighting=VolumetricLightingEvsmClusteredReprojMQ USE_PREFILTERED_SHADOWS VL_PRESET_MQ ENABLE_REPROJECTION=1 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
+#pragma kernel VolumetricLightingEvsmClusteredReprojHQ VolumetricLighting=VolumetricLightingEvsmClusteredReprojHQ USE_PREFILTERED_SHADOWS VL_PRESET_HQ ENABLE_REPROJECTION=1 LIGHTLOOP_TILE_PASS   USE_CLUSTERED_LIGHTLIST
 
 // #pragma enable_d3d11_debug_symbols
 
@@ -42,9 +51,8 @@ CBUFFER_END
 #define SHADOW_USE_ONLY_VIEW_BASED_BIASING 1 // We don't use normal biasing as it is not available when doing volumetric
 #define SHADOW_USE_VIEW_BIAS_SCALING       0 // No biasing, please
 #define SUPPORT_PUNCTUAL_LIGHTS            0 // Punctual lights contribute to fog lighting
-#define USE_PREFILTERED_SHADOWS            1 // Uses a low-resolution EVSM shadow map
 
-#if USE_PREFILTERED_SHADOWS
+#ifdef USE_PREFILTERED_SHADOWS
     #define SHADOW_USE_PREFILTERED_SHADOWS
     #define SHADOW_EVSM_USE_GLOBAL_PARAMS
     #define SHADOW_OVERRIDE_ALGORITM GPUSHADOWALGORITHM_EVSM_2

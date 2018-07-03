@@ -20,6 +20,7 @@ namespace UnityEditor.Experimental.Rendering
         public SerializedProperty increaseSssSampleCount;
         [UnityEngine.Serialization.FormerlySerializedAs("supportVolumetric")]
         public SerializedProperty supportVolumetrics;
+        public SerializedProperty usePcfForVolumetrics;
         public SerializedProperty increaseResolutionOfVolumetrics;
         public SerializedProperty supportRuntimeDebugDisplay;
         public SerializedProperty supportDitheringCrossFade;
@@ -44,6 +45,7 @@ namespace UnityEditor.Experimental.Rendering
             supportStereo                   = root.Find((RenderPipelineSettings s) => s.supportStereo);
             increaseSssSampleCount          = root.Find((RenderPipelineSettings s) => s.increaseSssSampleCount);
             supportVolumetrics              = root.Find((RenderPipelineSettings s) => s.supportVolumetrics);
+            usePcfForVolumetrics            = root.Find((RenderPipelineSettings s) => s.usePcfForVolumetrics);
             increaseResolutionOfVolumetrics = root.Find((RenderPipelineSettings s) => s.increaseResolutionOfVolumetrics);
             supportRuntimeDebugDisplay      = root.Find((RenderPipelineSettings s) => s.supportRuntimeDebugDisplay);
             supportDitheringCrossFade       = root.Find((RenderPipelineSettings s) => s.supportDitheringCrossFade);

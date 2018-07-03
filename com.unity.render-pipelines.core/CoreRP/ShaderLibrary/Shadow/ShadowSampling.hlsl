@@ -10,7 +10,7 @@
 //
 //                  1 tap PCF sampling
 //
-real SampleShadow_PCF_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 coord, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_PCF_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 coord, float slice, uint texIdx, uint sampIdx )
 {
     real depthBias = asfloat( shadowContext.payloads[payloadOffset].x );
     payloadOffset++;
@@ -20,10 +20,10 @@ real SampleShadow_PCF_1tap( ShadowContext shadowContext, inout uint payloadOffse
     coord.z += depthBias;
 #endif
     // sample the texture
-    return SampleCompShadow_T2DA( shadowContext, texIdx, sampIdx, coord, slice ).x;
+    return SampleCompShadow_T2DA( shadowContext, texIdx, sampIdx, coord.xyz, slice ).x;
 }
 
-real SampleShadow_PCF_1tap( ShadowContext shadowContext, inout uint payloadOffset, real3 coord, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
+real SampleShadow_PCF_1tap( ShadowContext shadowContext, inout uint payloadOffset, real4 coord, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
 {
     real depthBias = asfloat( shadowContext.payloads[payloadOffset].x );
     payloadOffset++;
@@ -33,13 +33,13 @@ real SampleShadow_PCF_1tap( ShadowContext shadowContext, inout uint payloadOffse
     coord.z += depthBias;
 #endif
     // sample the texture
-    return SAMPLE_TEXTURE2D_ARRAY_SHADOW( tex, compSamp, coord, slice );
+    return SAMPLE_TEXTURE2D_ARRAY_SHADOW( tex, compSamp, coord.xyz, slice );
 }
 
 //
 //                  3x3 tent PCF sampling (4 taps)
 //
-real SampleShadow_PCF_Tent_3x3( ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real3 coord, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_PCF_Tent_3x3( ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real4 coord, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -65,7 +65,7 @@ real SampleShadow_PCF_Tent_3x3( ShadowContext shadowContext, inout uint payloadO
     return shadow;
 }
 
-real SampleShadow_PCF_Tent_3x3(ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real3 coord, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
+real SampleShadow_PCF_Tent_3x3(ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real4 coord, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -93,7 +93,7 @@ real SampleShadow_PCF_Tent_3x3(ShadowContext shadowContext, inout uint payloadOf
 //
 //                  5x5 tent PCF sampling (9 taps)
 //
-real SampleShadow_PCF_Tent_5x5( ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real3 coord, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_PCF_Tent_5x5( ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real4 coord, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -119,7 +119,7 @@ real SampleShadow_PCF_Tent_5x5( ShadowContext shadowContext, inout uint payloadO
     return shadow;
 }
 
-real SampleShadow_PCF_Tent_5x5(ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real3 coord, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
+real SampleShadow_PCF_Tent_5x5(ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real4 coord, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -173,7 +173,7 @@ real SampleShadow_PCF_Tent_5x5(ShadowContext shadowContext, inout uint payloadOf
 //
 //                  7x7 tent PCF sampling (16 taps)
 //
-real SampleShadow_PCF_Tent_7x7( ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real3 coord, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
+real SampleShadow_PCF_Tent_7x7( ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real4 coord, real2 sampleBias, float slice, uint texIdx, uint sampIdx )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -200,7 +200,7 @@ real SampleShadow_PCF_Tent_7x7( ShadowContext shadowContext, inout uint payloadO
     return shadow;
 }
 
-real SampleShadow_PCF_Tent_7x7(ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real3 coord, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
+real SampleShadow_PCF_Tent_7x7(ShadowContext shadowContext, inout uint payloadOffset, real4 textureSize, real4 texelSizeRcp, real4 coord, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp )
 {
     real2 params     = asfloat( shadowContext.payloads[payloadOffset].xy );
     real  depthBias  = params.x;
@@ -306,7 +306,7 @@ real SampleShadow_PCF_9tap_Adaptive( ShadowContext shadowContext, inout uint pay
     v33Taps.w = SampleCompShadow_T2DA( shadowContext, texIdx, sampIdx, real3( tcs.xy + vShadow3x3PCFTerms2.zy, tcs.z + dot( vShadow3x3PCFTerms2.zy, sampleBias ) ), slice ).x; //  0  1
     flSum += dot( v33Taps.xyzw, vShadow3x3PCFTerms0.yyyy );
 
-    flSum += SampleCompShadow_T2DA( shadowContext, texIdx, sampIdx, tcs, slice ).x * vShadow3x3PCFTerms0.z;
+    flSum += SampleCompShadow_T2DA( shadowContext, texIdx, sampIdx, tcs.xyz, slice ).x * vShadow3x3PCFTerms0.z;
 
     return flSum;
 }
@@ -547,7 +547,7 @@ real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, r
     //1) Blocker Search
     real averageBlockerDepth = 0.0;
     real numBlockers         = 0.0;
-    if (!BlockerSearch(averageBlockerDepth, numBlockers, shadowSoftnesss + 0.000001, tcs, sampleJitter, sampleBias, shadowContext, slice, texIdx, sampIdx, sampleCount))
+    if (!BlockerSearch(averageBlockerDepth, numBlockers, shadowSoftnesss + 0.000001, tcs.xyz, sampleJitter, sampleBias, shadowContext, slice, texIdx, sampIdx, sampleCount))
         return 1.0;
 
     //2) Penumbra Estimation
@@ -555,7 +555,7 @@ real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, r
     filterSize = max(filterSize, 0.000001);
 
     //3) Filter
-    return PCSS(tcs, filterSize, scaleOffset, slice, sampleBias, sampleJitter, shadowContext, texIdx, sampIdx, sampleCount);
+    return PCSS(tcs.xyz, filterSize, scaleOffset, slice, sampleBias, sampleJitter, shadowContext, texIdx, sampIdx, sampleCount);
 }
 
 real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, real4 tcs, real4 scaleOffset, real2 sampleBias, float slice, Texture2DArray tex, SamplerComparisonState compSamp, SamplerState samp )
@@ -571,7 +571,7 @@ real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, r
     //1) Blocker Search
     real averageBlockerDepth = 0.0;
     real numBlockers         = 0.0;
-    if (!BlockerSearch(averageBlockerDepth, numBlockers, shadowSoftnesss + 0.000001, tcs, slice, sampleJitter, sampleBias, tex, samp, sampleCount)) 
+    if (!BlockerSearch(averageBlockerDepth, numBlockers, shadowSoftnesss + 0.000001, tcs.xyz, slice, sampleJitter, sampleBias, tex, samp, sampleCount))
         return 1.0;
 
     //2) Penumbra Estimation
@@ -579,7 +579,7 @@ real SampleShadow_PCSS( ShadowContext shadowContext, inout uint payloadOffset, r
     filterSize = max(filterSize, 0.000001);
 
     //3) Filter
-    return PCSS(tcs, filterSize, scaleOffset, slice, sampleBias, sampleJitter, tex, compSamp, sampleCount);
+    return PCSS(tcs.xyz, filterSize, scaleOffset, slice, sampleBias, sampleJitter, tex, compSamp, sampleCount);
 }
 
 //-----------------------------------------------------------------------------------------------------

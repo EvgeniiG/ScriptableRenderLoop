@@ -109,25 +109,24 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
             }
         } // struct Parameters
 
-        public VolumetricLightingPreset preset = VolumetricLightingPreset.Off;
+        bool                     m_UsePcf                    = false;
+        bool                     m_supportVolumetrics        = false;
+        VolumetricLightingPreset m_Preset                    = VolumetricLightingPreset.Off;
 
-        static ComputeShader    m_VolumeVoxelizationCS      = null;
-        static ComputeShader    m_VolumetricLightingCS      = null;
+        static ComputeShader     m_VolumeVoxelizationCS      = null;
+        static ComputeShader     m_VolumetricLightingCS      = null;
 
-        List<OrientedBBox>      m_VisibleVolumeBounds       = null;
-        List<DensityVolumeData> m_VisibleVolumeData         = null;
-        public const int        k_MaxVisibleVolumeCount     = 512;
+        List<OrientedBBox>       m_VisibleVolumeBounds       = null;
+        List<DensityVolumeData>  m_VisibleVolumeData         = null;
+        public const int         k_MaxVisibleVolumeCount     = 512;
 
         // Static keyword is required here else we get a "DestroyBuffer can only be called from the main thread"
-        static ComputeBuffer    s_VisibleVolumeBoundsBuffer = null;
-        static ComputeBuffer    s_VisibleVolumeDataBuffer   = null;
+        static ComputeBuffer     s_VisibleVolumeBoundsBuffer = null;
+        static ComputeBuffer     s_VisibleVolumeDataBuffer   = null;
 
         // These two buffers do not depend on the frameID and are therefore shared by all views.
-        RTHandleSystem.RTHandle m_DensityBufferHandle;
-        RTHandleSystem.RTHandle m_LightingBufferHandle;
-
-        // Is the feature globally disabled?
-        bool m_supportVolumetrics = false;
+        RTHandleSystem.RTHandle  m_DensityBufferHandle;
+        RTHandleSystem.RTHandle  m_LightingBufferHandle;
 
         public void Build(HDRenderPipelineAsset asset)
         {
@@ -136,8 +135,9 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
             if (!m_supportVolumetrics)
                 return;
 
-            preset = asset.renderPipelineSettings.increaseResolutionOfVolumetrics ? VolumetricLightingPreset.High :
-                                                                                    VolumetricLightingPreset.Medium;
+            m_UsePcf = asset.renderPipelineSettings.usePcfForVolumetrics;
+            m_Preset = asset.renderPipelineSettings.increaseResolutionOfVolumetrics ? VolumetricLightingPreset.High :
+                                                                                      VolumetricLightingPreset.Medium;
 
             m_VolumeVoxelizationCS = asset.renderPipelineResources.volumeVoxelizationCS;
             m_VolumetricLightingCS = asset.renderPipelineResources.volumetricLightingCS;
@@ -148,7 +148,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         // RTHandleSystem API expects a function which computes the resolution. We define it here.
         Vector2Int ComputeVBufferResolutionXY(Vector2Int screenSize)
         {
-            Vector3Int resolution = ComputeVBufferResolution(preset, screenSize.x, screenSize.y);
+            Vector3Int resolution = ComputeVBufferResolution(m_Preset, screenSize.x, screenSize.y);
 
             return new Vector2Int(resolution.x, resolution.y);
         }
@@ -175,7 +175,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         {
             frameIndex &= 1;
 
-            int d = ComputeVBufferSliceCount(preset);
+            int d = ComputeVBufferSliceCount(m_Preset);
 
             return rtHandleSystem.Alloc(scaleFunc:         ComputeHistoryVBufferResolutionXY,
                 slices:            d,
@@ -198,7 +198,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
             s_VisibleVolumeBoundsBuffer = new ComputeBuffer(k_MaxVisibleVolumeCount, Marshal.SizeOf(typeof(OrientedBBox)));
             s_VisibleVolumeDataBuffer   = new ComputeBuffer(k_MaxVisibleVolumeCount, Marshal.SizeOf(typeof(DensityVolumeData)));
 
-            int d = ComputeVBufferSliceCount(preset);
+            int d = ComputeVBufferSliceCount(m_Preset);
 
             m_DensityBufferHandle = RTHandles.Alloc(scaleFunc:         ComputeVBufferResolutionXY,
                     slices:            d,
@@ -224,7 +224,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         // For the initial allocation, no suballocation happens (the texture is full size).
         VBufferParameters ComputeVBufferParameters(HDCamera hdCamera, bool isInitialAllocation)
         {
-            Vector3Int viewportResolution = ComputeVBufferResolution(preset, hdCamera.camera.pixelWidth, hdCamera.camera.pixelHeight);
+            Vector3Int viewportResolution = ComputeVBufferResolution(m_Preset, hdCamera.camera.pixelWidth, hdCamera.camera.pixelHeight);
             Vector3Int bufferResolution; // Could be higher due to sub-allocation (resource aliasing) in the RTHandle system
 
             if (isInitialAllocation)
@@ -519,7 +519,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
             {
                 int numVisibleVolumes = m_VisibleVolumeBounds.Count;
 
-                bool highQuality     = preset == VolumetricLightingPreset.High;
+                bool highQuality     = m_Preset == VolumetricLightingPreset.High;
                 bool enableClustered = hdCamera.frameSettings.lightLoopSettings.enableTileAndCluster;
 
                 int kernel;
@@ -527,12 +527,12 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 if (highQuality)
                 {
                     kernel = m_VolumeVoxelizationCS.FindKernel(enableClustered ? "VolumeVoxelizationClusteredHQ"
-                                                                               : "VolumeVoxelizationBruteforceHQ");
+                                                                               : "VolumeVoxelizationHQ");
                 }
                 else
                 {
                     kernel = m_VolumeVoxelizationCS.FindKernel(enableClustered ? "VolumeVoxelizationClusteredMQ"
-                                                                               : "VolumeVoxelizationBruteforceMQ");
+                                                                               : "VolumeVoxelizationMQ");
                 }
 
                 var     frameParams = hdCamera.vBufferParams[0];
@@ -626,38 +626,41 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
             using (new ProfilingSample(cmd, "Volumetric Lighting"))
             {
                 // Only available in the Play Mode because all the frame counters in the Edit Mode are broken.
-                bool highQuality        = preset == VolumetricLightingPreset.High;
+                bool highQuality        = m_Preset == VolumetricLightingPreset.High;
                 bool enableClustered    = hdCamera.frameSettings.lightLoopSettings.enableTileAndCluster;
                 bool enableReprojection = Application.isPlaying && hdCamera.camera.cameraType == CameraType.Game;
 
-                int kernel;
+                string kernelName = "VolumetricLighting";
 
-                if (highQuality)
+                if (m_UsePcf)
                 {
-                    if (enableReprojection)
-                    {
-                        kernel = m_VolumetricLightingCS.FindKernel(enableClustered ? "VolumetricLightingClusteredReprojHQ"
-                                                                                   : "VolumetricLightingBruteforceReprojHQ");
-                    }
-                    else
-                    {
-                        kernel = m_VolumetricLightingCS.FindKernel(enableClustered ? "VolumetricLightingClusteredHQ"
-                                                                                   : "VolumetricLightingBruteforceHQ");
-                    }
+                    kernelName += "Pcf";
                 }
                 else
                 {
-                    if (enableReprojection)
-                    {
-                        kernel = m_VolumetricLightingCS.FindKernel(enableClustered ? "VolumetricLightingClusteredReprojMQ"
-                                                                                   : "VolumetricLightingBruteforceReprojMQ");
-                    }
-                    else
-                    {
-                        kernel = m_VolumetricLightingCS.FindKernel(enableClustered ? "VolumetricLightingClusteredMQ"
-                                                                                   : "VolumetricLightingBruteforceMQ");
-                    }
+                    kernelName += "Evsm";
                 }
+
+                if (enableClustered)
+                {
+                    kernelName += "Clustered";
+                }
+
+                if (enableReprojection)
+                {
+                    kernelName += "Reproj";
+                }
+
+                if (highQuality)
+                {
+                    kernelName += "HQ";
+                }
+                else
+                {
+                    kernelName += "MQ";
+                }
+
+                int kernel = m_VolumetricLightingCS.FindKernel(kernelName);
 
                 var       frameParams = hdCamera.vBufferParams[0];
                 Vector4   resolution  = frameParams.resolution;

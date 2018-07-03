@@ -29,6 +29,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
         public bool supportOnlyForward = false;
         public bool increaseSssSampleCount = false;
         public bool supportVolumetrics = true;
+        public bool usePcfForVolumetrics = false;
         public bool increaseResolutionOfVolumetrics = false;
 
         // reduce variant

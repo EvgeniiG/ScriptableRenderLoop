@@ -176,6 +176,8 @@ void FillVolumetricDensityBuffer(PositionInputs posInput, float3 rayOriginWS, fl
                 const float3 voxelAxisForwardBS = mul(voxelAxisForward, transpose(obbFrame));
 
             #if SOFT_VOXELIZATION
+                // TODO: use cone-box intersection logic for soft voxelization and LOD selection.
+
                 // We need to determine which is the face closest to 'voxelCenterBS'.
                 float minFaceDist = abs(obbExtents.x - abs(voxelCenterBS.x));
 

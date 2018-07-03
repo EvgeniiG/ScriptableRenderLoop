@@ -1016,7 +1016,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
 
                             if (hdCamera.frameSettings.enableVolumetrics)
                             {
-                                // Downsample the shadow atlas and convert it to Exponential/Variance/Moment shadow maps (TBD).
+                                // Downsample the shadow atlas and convert it to EVSM-2 (64-bit).
                                 // Used to create soft, aliasing-free shadow maps for the volumetric lighting pass.
                                 m_LightLoop.DownsampleShadowMaps(cmd);
                             }

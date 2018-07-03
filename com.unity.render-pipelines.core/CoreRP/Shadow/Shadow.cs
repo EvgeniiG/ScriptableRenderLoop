@@ -143,7 +143,7 @@ namespace UnityEngine.Experimental.Rendering
 
         public override void CreateShadowmap()
         {
-            m_Shadowmap = new RenderTexture((int)m_Width, (int)m_Height, (int)m_ShadowmapBits, m_ShadowmapFormat);
+            m_Shadowmap = new RenderTexture((int)m_Width, (int)m_Height, (int)m_ShadowmapBits, m_ShadowmapFormat, RenderTextureReadWrite.Linear);
             CreateShadowmap(m_Shadowmap);
             m_Shadowmap.Create();
 #if false && UNITY_PS4 && !UNITY_EDITOR
@@ -157,7 +157,6 @@ namespace UnityEngine.Experimental.Rendering
             m_Shadowmap.hideFlags   = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
             m_Shadowmap.dimension   = TextureDimension.Tex2DArray;
             m_Shadowmap.volumeDepth = (int)m_Slices;
-            m_Shadowmap.enableRandomWrite = true;
             m_Shadowmap.name = CoreUtils.GetRenderTargetAutoName(shadowmap.width, shadowmap.height, 1, shadowmap.format, "Shadow", mips: shadowmap.useMipMap);
 
             m_ShadowmapId = new RenderTargetIdentifier(m_Shadowmap);

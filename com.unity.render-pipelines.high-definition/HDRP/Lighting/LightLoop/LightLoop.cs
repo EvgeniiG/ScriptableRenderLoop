@@ -662,7 +662,7 @@ namespace UnityEngine.Experimental.Rendering.HDPipeline
                 // m_DefEVSM_VarianceBias    = new ValRange( "Variance bias"     , 0.0f, 0.1f    ,  1.0f  , 0.01f  );
                 // m_DefEVSM_PosExponent_32  = new ValRange( "Positive Exponent" , 1.0f, 1.0f    , 42.0f  , 1.0f   );
                 // m_DefEVSM_NegExponent_32  = new ValRange( "Negative Exponent" , 1.0f, 1.0f    , 42.0f  , 1.0f   );
-                m_GlobalEvsmData.parameters = new Vector4(0.0f, 0.0001f, 20.0f, 20.0f);
+                m_GlobalEvsmData.parameters = new Vector4(0.0f, 5.960464478e-8f, 20.0f, 20.0f);
             }
         }
 

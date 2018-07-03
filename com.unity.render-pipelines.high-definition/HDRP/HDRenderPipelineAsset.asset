@@ -56,6 +56,7 @@ MonoBehaviour:
     supportOnlyForward: 0
     increaseSssSampleCount: 0
     supportVolumetrics: 1
+    usePcfForVolumetrics: 0
     increaseResolutionOfVolumetrics: 0
     supportRuntimeDebugDisplay: 1
     supportDitheringCrossFade: 1

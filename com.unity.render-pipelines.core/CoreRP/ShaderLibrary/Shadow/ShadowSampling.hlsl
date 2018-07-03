@@ -415,7 +415,6 @@ real SampleShadow_EVSM_1tap_Impl( real depth, real4 moments, real4 params, bool 
     real2 warpedDepth = ShadowMoments_WarpDepth( depth, evsmExponents );
 
     // Derivate of warping at depth
-    // TODO: make sure it works for UNITY_REVERSED_Z.
     real2 depthScale  = evsmExponents * warpedDepth;
     real2 minVariance = depthScale * depthScale * varianceBias;
 

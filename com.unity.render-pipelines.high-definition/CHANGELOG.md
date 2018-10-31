@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added support of MSAA when Both ListShaderMode is enabled (previously only Forward mode was supported)
 - Added support of emissive color override in debug mode
 - Exposed max light for lightloop settings in hdrp asset UI
+- Disable NormalDBuffer pass update if no there is no decal
 
 ### Fixed
 - Fixed sphere shaped influence handles clamping in reflection probes
@@ -23,7 +24,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed SSR issues related to self-intersections
 - Fixed shape density volume handle speed
 - Fixed density volume shape handle moving too fast
-- Fixed camera velocity
+- Fixed camera velocity pass that was remove by mistake
+- Fixed some null pointer exceptions when disabling motion vectors support
+- Fixed viewports for both SSS combine pass and transparent depth prepass
+- Fixed blend mode pop up in UI not appearing when pre refraction is on
+- Fixed some null pointer exceptions when disabling motion vectors support
+- Fixed layered lit UI issue with scrollbar
 
 ### Changed
 - Renamed "Line" shaped lights to "Tube" light
